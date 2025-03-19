@@ -1,0 +1,496 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Hono.js Cursor Pagination Best Practices
+
+## Table of Contents
+1. [Introduction](#introduction)
+2. [Cursor Encoding/Decoding](#1-cursor-encodingdecoding)
+3. [Cursor Schema Validation](#2-cursor-schema-validation)
+4. [Reusable Pagination Handler](#3-reusable-pagination-handler)
+5. [Practical Example: Users Endpoint](#4-practical-example-users-endpoint)
+6. [Bidirectional Pagination](#5-bidirectional-pagination)
+7. [Cursor with Complex Filtering](#6-cursor-with-complex-filtering)
+8. [Cursor with Compound Keys](#7-cursor-with-compound-keys)
+9. [Error Handling for Cursors](#8-error-handling-for-cursors)
+10. [Handling Stale Cursors](#9-handling-stale-cursors-with-graceful-fallbacks)
+11. [Client Usage Example](#10-client-usage-example)
+
+## Introduction
+
+Cursor-based pagination is a robust approach for paginating through large datasets in web applications. This guide covers best practices for implementing cursor pagination in Hono.js applications, with a focus on security, performance, and user experience.
+
+## 1. Cursor Encoding/Decoding
+
+Always encode and decode cursors to prevent tampering and hide implementation details.
+
+```typescript
+import { Hono } from 'hono'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
+const app = new Hono()
+
+// Encode cursor data to Base64
+const encodeCursor = (data: Record<string, any>): string => {
+  return Buffer.from(JSON.stringify(data)).toString('base64')
+}
+
+// Decode cursor from Base64
+const decodeCursor = (cursor: string): Record<string, any> => {
+  try {
+    return JSON.parse(Buffer.from(cursor, 'base64').toString())
+  } catch (error) {
+    throw new Error('Invalid cursor')
+  }
+}
+```
+
+## 2. Cursor Schema Validation
+
+Use Zod to validate cursor parameters and prevent invalid inputs.
+
+```typescript
+import { z } from 'zod'
+import { zValidator } from '@hono/zod-validator'
+
+const cursorQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(10),
+  // You can add more filters here
+})
+```
+
+## 3. Reusable Pagination Handler
+
+Create reusable middleware functions for pagination logic.
+
+```typescript
+type PaginationOptions = {
+  cursorField: string
+  defaultLimit?: number
+  maxLimit?: number
+}
+
+const createPaginationHandler = (options: PaginationOptions) => {
+  const { cursorField, defaultLimit = 10, maxLimit = 100 } = options
+  
+  return async (c, next) => {
+    const query = c.req.query()
+    const limit = Math.min(parseInt(query.limit || defaultLimit.toString()), maxLimit)
+    const cursor = query.cursor ? decodeCursor(query.cursor) : null
+    
+    c.set('pagination', { cursor, limit, cursorField })
+    await next()
+  }
+}
+```
+
+## 4. Practical Example: Users Endpoint
+
+A complete implementation with Prisma.
+
+```typescript
+app.get('/api/users', zValidator('query', cursorQuerySchema), async (c) => {
+  const { cursor, limit } = c.req.valid('query')
+  
+  let queryOptions: any = {
+    take: limit + 1, // Take one more to determine if there's a next page
+    orderBy: { id: 'asc' },
+  }
+  
+  // Add cursor condition if provided
+  if (cursor) {
+    const decodedCursor = decodeCursor(cursor)
+    queryOptions.cursor = { id: decodedCursor.id }
+    queryOptions.skip = 1 // Skip the cursor itself
+  }
+  
+  const users = await prisma.user.findMany(queryOptions)
+  
+  // Check if there's a next page by seeing if we got more items than requested
+  const hasNextPage = users.length > limit
+  
+  // Remove the extra item we used to determine if there's a next page
+  const items = hasNextPage ? users.slice(0, limit) : users
+  
+  // Generate next cursor from the last item
+  const nextCursor = hasNextPage ? encodeCursor({ id: items[items.length - 1].id }) : null
+  
+  return c.json({
+    items,
+    pageInfo: {
+      hasNextPage,
+      nextCursor,
+      count: items.length,
+    }
+  })
+})
+```
+
+## 5. Bidirectional Pagination
+
+Support both forward and backward pagination.
+
+```typescript
+const biDirectionalCursorSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(10),
+  direction: z.enum(['forward', 'backward']).default('forward'),
+})
+
+app.get('/api/posts', zValidator('query', biDirectionalCursorSchema), async (c) => {
+  const { cursor, limit, direction } = c.req.valid('query')
+  
+  let queryOptions: any = {
+    take: direction === 'forward' ? limit + 1 : -(limit + 1), // Negative for backward pagination
+    orderBy: { createdAt: direction === 'forward' ? 'asc' : 'desc' },
+  }
+  
+  if (cursor) {
+    const decodedCursor = decodeCursor(cursor)
+    queryOptions.cursor = { createdAt: new Date(decodedCursor.createdAt) }
+    queryOptions.skip = 1
+  }
+  
+  const posts = await prisma.post.findMany(queryOptions)
+  
+  // Process results based on direction
+  const hasMore = posts.length > limit
+  const items = hasMore ? posts.slice(0, limit) : posts
+  
+  // For backward pagination, we need to reverse the order to display chronologically
+  const normalizedItems = direction === 'backward' ? [...items].reverse() : items
+  
+  // Create cursors for both directions
+  const endCursor = hasMore && items.length > 0 
+    ? encodeCursor({ createdAt: items[items.length - 1].createdAt.toISOString() }) 
+    : null
+    
+  const startCursor = items.length > 0 
+    ? encodeCursor({ createdAt: items[0].createdAt.toISOString() }) 
+    : null
+  
+  return c.json({
+    items: normalizedItems,
+    pageInfo: {
+      hasNextPage: direction === 'forward' ? hasMore : Boolean(cursor),
+      hasPreviousPage: direction === 'backward' ? hasMore : Boolean(cursor),
+      startCursor,
+      endCursor,
+      count: items.length,
+    }
+  })
+})
+```
+
+## 6. Cursor with Complex Filtering
+
+Handle complex filtering with cursor pagination.
+
+```typescript
+const productFilterSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(10),
+  category: z.string().optional(),
+  minPrice: z.number().optional(),
+  maxPrice: z.number().optional(),
+})
+
+app.get('/api/products', zValidator('query', productFilterSchema), async (c) => {
+  const { cursor, limit, category, minPrice, maxPrice } = c.req.valid('query')
+  
+  // Build where clause for filters
+  const where: any = {}
+  
+  if (category) {
+    where.category = category
+  }
+  
+  if (minPrice !== undefined || maxPrice !== undefined) {
+    where.price = {}
+    if (minPrice !== undefined) where.price.gte = minPrice
+    if (maxPrice !== undefined) where.price.lte = maxPrice
+  }
+  
+  let queryOptions: any = {
+    where,
+    take: limit + 1,
+    orderBy: { updatedAt: 'desc' },
+  }
+  
+  if (cursor) {
+    const decodedCursor = decodeCursor(cursor)
+    queryOptions.cursor = { 
+      id: decodedCursor.id 
+    }
+    queryOptions.skip = 1
+  }
+  
+  const products = await prisma.product.findMany(queryOptions)
+  
+  const hasNextPage = products.length > limit
+  const items = hasNextPage ? products.slice(0, limit) : products
+  
+  // Include cursor data and original filters in the response
+  const nextCursor = hasNextPage 
+    ? encodeCursor({ 
+        id: items[items.length - 1].id,
+        // Store the filter conditions in the cursor for consistency
+        _filters: { category, minPrice, maxPrice }
+      }) 
+    : null
+  
+  return c.json({
+    items,
+    pageInfo: {
+      hasNextPage,
+      nextCursor,
+      count: items.length,
+      // Include the applied filters for transparency
+      filters: { category, minPrice, maxPrice }
+    }
+  })
+})
+```
+
+## 7. Cursor with Compound Keys
+
+Paginate based on multiple fields for stable sorting.
+
+```typescript
+app.get('/api/activity', async (c) => {
+  const limit = parseInt(c.req.query('limit') || '10')
+  const cursor = c.req.query('cursor')
+  
+  let queryOptions: any = {
+    take: limit + 1,
+    // Order by two fields to ensure stable pagination
+    orderBy: [
+      { date: 'desc' },
+      { id: 'asc' }, // Secondary sort for stability
+    ],
+  }
+  
+  if (cursor) {
+    const { date, id } = decodeCursor(cursor)
+    // Compound cursor condition
+    queryOptions.cursor = {
+      date_id: {
+        date: new Date(date),
+        id,
+      }
+    }
+    queryOptions.skip = 1
+  }
+  
+  const activities = await prisma.activity.findMany(queryOptions)
+  
+  const hasNextPage = activities.length > limit
+  const items = hasNextPage ? activities.slice(0, limit) : activities
+  
+  const nextCursor = hasNextPage 
+    ? encodeCursor({ 
+        date: items[items.length - 1].date.toISOString(),
+        id: items[items.length - 1].id 
+      }) 
+    : null
+  
+  return c.json({
+    items,
+    pageInfo: {
+      hasNextPage,
+      nextCursor,
+      count: items.length,
+    }
+  })
+})
+```
+
+## 8. Error Handling for Cursors
+
+Implement proper error handling for invalid cursors.
+
+```typescript
+app.get('/api/comments', async (c) => {
+  try {
+    const cursor = c.req.query('cursor')
+    const limit = parseInt(c.req.query('limit') || '10')
+    
+    let decodedCursor = null
+    if (cursor) {
+      try {
+        decodedCursor = decodeCursor(cursor)
+      } catch (e) {
+        // Invalid cursor format, return a 400 error
+        return c.json({ error: 'Invalid cursor format' }, 400)
+      }
+    }
+    
+    let queryOptions: any = {
+      take: limit + 1,
+      orderBy: { createdAt: 'desc' },
+    }
+    
+    if (decodedCursor) {
+      queryOptions.cursor = { 
+        createdAt: new Date(decodedCursor.createdAt)
+      }
+      queryOptions.skip = 1
+    }
+    
+    const comments = await prisma.comment.findMany(queryOptions)
+    
+    const hasNextPage = comments.length > limit
+    const items = hasNextPage ? comments.slice(0, limit) : comments
+    
+    const nextCursor = hasNextPage 
+      ? encodeCursor({ createdAt: items[items.length - 1].createdAt.toISOString() }) 
+      : null
+    
+    return c.json({
+      items,
+      pageInfo: {
+        hasNextPage,
+        nextCursor,
+        count: items.length,
+      }
+    })
+  } catch (error) {
+    console.error('Pagination error:', error)
+    return c.json({ error: 'Server error while processing pagination' }, 500)
+  }
+})
+```
+
+## 9. Handling Stale Cursors with Graceful Fallbacks
+
+Handle cases where cursor references an item that no longer exists.
+
+```typescript
+app.get('/api/notifications', async (c) => {
+  const cursor = c.req.query('cursor')
+  const limit = parseInt(c.req.query('limit') || '10')
+  
+  let queryOptions: any = {
+    take: limit + 1,
+    orderBy: { timestamp: 'desc' },
+  }
+  
+  if (cursor) {
+    try {
+      const decodedCursor = decodeCursor(cursor)
+      
+      // First check if the cursor item still exists
+      const cursorItem = await prisma.notification.findUnique({
+        where: { id: decodedCursor.id }
+      })
+      
+      if (cursorItem) {
+        // Normal cursor-based pagination
+        queryOptions.cursor = { timestamp: new Date(decodedCursor.timestamp) }
+        queryOptions.skip = 1
+      } else {
+        // Fallback: The cursor item no longer exists
+        // Use timestamp-based fallback instead
+        queryOptions.where = {
+          timestamp: { lt: new Date(decodedCursor.timestamp) }
+        }
+        // No skip needed since we're using a where clause
+      }
+    } catch (e) {
+      // Invalid cursor format, use default pagination
+      console.warn('Invalid cursor, using default pagination')
+    }
+  }
+  
+  const notifications = await prisma.notification.findMany(queryOptions)
+  
+  const hasNextPage = notifications.length > limit
+  const items = hasNextPage ? notifications.slice(0, limit) : notifications
+  
+  const nextCursor = hasNextPage 
+    ? encodeCursor({ 
+        id: items[items.length - 1].id,
+        timestamp: items[items.length - 1].timestamp.toISOString() 
+      }) 
+    : null
+  
+  return c.json({
+    items,
+    pageInfo: {
+      hasNextPage,
+      nextCursor,
+      count: items.length,
+    }
+  })
+})
+```
+
+## 10. Client Usage Example
+
+How to use cursor pagination from a client.
+
+```typescript
+// Client-side TypeScript example using fetch:
+
+interface PageInfo {
+  hasNextPage: boolean;
+  nextCursor: string | null;
+  count: number;
+}
+
+interface PaginatedResponse<T> {
+  items: T[];
+  pageInfo: PageInfo;
+}
+
+async function fetchPaginatedData<T>(
+  endpoint: string, 
+  cursor?: string, 
+  limit: number = 10
+): Promise<PaginatedResponse<T>> {
+  const params = new URLSearchParams();
+  if (cursor) params.append('cursor', cursor);
+  params.append('limit', limit.toString());
+  
+  const response = await fetch(`${endpoint}?${params.toString()}`, {
+    headers: {
+      'Authorization': `Bearer ${getAuthToken()}`
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`API error: ${response.status}`);
+  }
+  
+  return await response.json();
+}
+
+// Usage example:
+let allItems: UserType[] = [];
+let cursor: string | null = null;
+let hasMore = true;
+
+while (hasMore) {
+  const data = await fetchPaginatedData<UserType>('/api/users', cursor);
+  allItems = [...allItems, ...data.items];
+  cursor = data.pageInfo.nextCursor;
+  hasMore = data.pageInfo.hasNextPage && !!cursor;
+}
+```
+
+## Summary of Best Practices
+
+1. **Always encode/decode cursors** - Use Base64 encoding for security and to hide implementation details
+2. **Validate parameters with Zod** - Ensure cursor and limit parameters are valid
+3. **Take + 1 pattern** - Request one extra item to determine if there's a next page
+4. **Skip the cursor** - Use `skip: 1` when using a cursor to avoid including the cursor item
+5. **Return rich page info** - Include hasNextPage, nextCursor, and count in responses
+6. **Error handling** - Gracefully handle invalid cursors with helpful error messages
+7. **Bidirectional support** - Support both forward and backward pagination when needed
+8. **Compound cursors** - Use multiple fields for stable ordering
+9. **Handle stale cursors** - Implement fallback mechanisms for deleted items
+10. **Store filters in cursors** - Include filtering conditions in cursor data for consistency
