@@ -1,0 +1,20 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+logs/
+
+# Cache
+cache/
+
+# Data folders
+data
+
+# Temporary files
+tmp/
+
+
+
