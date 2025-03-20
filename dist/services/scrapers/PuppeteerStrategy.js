@@ -548,14 +548,31 @@ export class PuppeteerStrategy {
                         item.description = descElement.textContent?.trim();
                     }
                 }
-                // Extraction de la ville/emplacement
+                // Extraction de la ville/emplacement et séparation en champs distincts
                 if (selectors.city) {
                     // Si city est un tableau de sélecteurs, essayer chacun jusqu'à trouver quelque chose
                     if (Array.isArray(selectors.city)) {
                         for (const citySelector of selectors.city) {
                             const cityElement = container.querySelector(citySelector);
                             if (cityElement && cityElement.textContent?.trim()) {
-                                item.city = cityElement.textContent.trim();
+                                const dealerInfo = cityElement.textContent.trim();
+                                item.city = dealerInfo; // Conserver le champ city original
+                                
+                                // Utiliser regex pour extraire le fullname, code postal et ville
+                                // Format attendu: "Victor Lenoble • FR-01630 SAINT-GENIS-POUILLY"
+                                const dealerRegex = /^(.*?)(?:\s+•\s+(?:FR-(\d+)\s+)?(.*))?$/;
+                                const matches = dealerInfo.match(dealerRegex);
+                                
+                                if (matches) {
+                                    // Avant le '•' c'est 'fullname'
+                                    item.fullname = matches[1]?.trim() || '';
+                                    
+                                    // Après le '•' si c'est FR-***** alors c'est le code postal
+                                    item.postalCode = matches[2] || '';
+                                    
+                                    // Et seulement après c'est la ville
+                                    item.city = matches[3]?.trim() || dealerInfo; // Utiliser la ville extraite ou conserver la valeur originale si pas de match
+                                }
                                 break;
                             }
                         }
@@ -563,7 +580,26 @@ export class PuppeteerStrategy {
                     else {
                         const cityElement = container.querySelector(selectors.city);
                         if (cityElement) {
-                            item.city = cityElement.textContent?.trim();
+                            const dealerInfo = cityElement.textContent?.trim() || '';
+                            item.originalDealer = dealerInfo; // Conserver l'information complète
+                            
+                            // Utiliser regex pour extraire le fullname, code postal et ville
+                            // Format attendu: "Victor Lenoble • FR-01630 SAINT-GENIS-POUILLY"
+                            const dealerRegex = /^(.*?)(?:\s+•\s+(?:FR-(\d+)\s+)?(.*))?$/;
+                            const matches = dealerInfo.match(dealerRegex);
+                            
+                            if (matches) {
+                                // Avant le '•' c'est 'fullname'
+                                item.fullname = matches[1]?.trim() || '';
+                                
+                                // Après le '•' si c'est FR-***** alors c'est le code postal
+                                item.postalCode = matches[2] || '';
+                                
+                                // Et seulement après c'est la ville
+                                item.city = matches[3]?.trim() || dealerInfo; // Utiliser la ville extraite ou conserver la valeur originale si pas de match
+                            } else {
+                                item.city = dealerInfo; // Pas de correspondance de format, garder la valeur originale
+                            }
                         }
                     }
                 }
