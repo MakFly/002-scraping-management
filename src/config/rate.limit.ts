@@ -1,4 +1,4 @@
-import { RateLimitConfig } from '../types/RateLimiter';
+import { RateLimitConfig } from '../types/rate.limiter.types';
 
 export const rateLimitConfig: RateLimitConfig = {
   limit: 5, // 5 requests max

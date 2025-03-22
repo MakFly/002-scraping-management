@@ -10,7 +10,7 @@ import { createSwaggerRoute } from "../routes/swagger.route";
 import { cors } from 'hono/cors';
 import { prettyJSON } from 'hono/pretty-json';
 import { logger } from '../config/logger';
-import { errorMiddleware } from '../middleware/errorMiddleware';
+import { errorMiddleware } from '../middleware/error.middleware';
 
 // Create Hono application
 export const createApp = () => {
@@ -36,7 +36,7 @@ export const createApp = () => {
   app.get("/health", (c) => c.json({ status: "ok" }));
 
   // Routes API explicitement sous /api
-  app.route("/api", scrapeRoutes);
+  app.route("/", scrapeRoutes);
 
   // Setup Swagger OpenAPI Documentation
   const swaggerRouter = createSwaggerRoute();

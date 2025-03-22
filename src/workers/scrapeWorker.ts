@@ -4,8 +4,9 @@ import { scraperService } from '../services/ScraperService';
 import { logger } from '../config/logger';
 import { redisConnection } from '../config/redis';
 import { Server } from 'socket.io';
-import { ServerToClientEvents, ClientToServerEvents } from '../types/socketio';
+import { ServerToClientEvents, ClientToServerEvents } from '../types/socketio.types';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { WebSocketService } from '../services/WebSocketService';
 
 /**
  * Worker pour exécuter les tâches de scraping avec BullMQ
@@ -13,6 +14,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 export const createScrapeWorker = () => {
   logger.info('Démarrage du worker de scraping...');
   const prisma = new PrismaClient();
+  const wsService = WebSocketService.getInstance();
 
   const worker = new Worker<ScrapeJob>(
     'scrape-queue', 
@@ -37,20 +39,37 @@ export const createScrapeWorker = () => {
           data: { status: 'running' }
         });
 
+        // Notifier que le job a démarré via WebSocket
+        wsService.updateJobStatus(job.data.jobId, 'running', { 
+          message: `Job de scraping démarré pour ${job.data.source}` 
+        });
+
         // Mise à jour initiale de la progression
         await job.updateProgress(10);
-        await job.log('Initialisation du scraping...');
+        const logInit = 'Initialisation du scraping...';
+        await job.log(logInit);
         
+        // Envoyer le log en temps réel
+        wsService.addJobLog(job.data.jobId, logInit);
+
         // Exécuter le scraping avec le service
         const startTime = Date.now();
         await job.updateProgress(30);
-        await job.log('Scraping en cours...');
+        const logStart = 'Scraping en cours...';
+        await job.log(logStart);
+        
+        // Envoyer le log en temps réel
+        wsService.addJobLog(job.data.jobId, logStart);
         
         const result = await scraperService.scrape(job.data);
         
         // Mise à jour finale de la progression
         await job.updateProgress(90);
-        await job.log(`Scraping terminé avec ${result.items.length} résultats en ${Date.now() - startTime}ms`);
+        const logResult = `Scraping terminé avec ${result.items.length} résultats en ${Date.now() - startTime}ms`;
+        await job.log(logResult);
+        
+        // Envoyer le log en temps réel
+        wsService.addJobLog(job.data.jobId, logResult);
         
         // Mettre à jour l'historique et le statut du job comme complété
         await prisma.scrapeJobHistory.update({
@@ -69,8 +88,22 @@ export const createScrapeWorker = () => {
           data: { status: 'completed' }
         });
 
+        // Notifier explicitement que le job est complété via WebSocket
+        wsService.updateJobStatus(job.data.jobId, 'completed', { 
+          message: 'Scraping complété avec succès',
+          result: {
+            itemCount: result.items.length,
+            scraperUsed: result.metadata?.scraperUsed || job.data.source,
+            executionTimeMs: result.metadata?.executionTimeMs || (Date.now() - startTime)
+          }
+        });
+
         await job.updateProgress(100);
-        await job.log('Traitement terminé');
+        const logEnd = 'Traitement terminé';
+        await job.log(logEnd);
+        
+        // Envoyer le log final en temps réel
+        wsService.addJobLog(job.data.jobId, logEnd);
         
         return {
           success: true,
@@ -102,6 +135,14 @@ export const createScrapeWorker = () => {
               errors: [error instanceof Error ? error.message : String(error)]
             }
           });
+          
+          // Notifier explicitement que le job a échoué via WebSocket
+          wsService.updateJobStatus(job.data.jobId, 'failed', { 
+            error: error instanceof Error ? error.message : String(error) 
+          });
+          
+          // Envoyer le message d'erreur en temps réel
+          wsService.addJobLog(job.data.jobId, `Erreur: ${error instanceof Error ? error.message : String(error)}`);
         }
         
         throw new Error(`Échec du scraping: ${error instanceof Error ? error.message : String(error)}`);
@@ -126,10 +167,28 @@ export const createScrapeWorker = () => {
   // Gestion des événements du worker
   worker.on('completed', async (job) => {
     logger.info(`Job ${job.id} completed successfully`);
+    
+    // Vérifier si le job a bien des données
+    if (job.data && job.data.jobId) {
+      // S'assurer qu'une notification 'completed' est envoyée
+      wsService.updateJobStatus(job.data.jobId, 'completed', {
+        message: 'Job completed (from worker event handler)',
+        jobId: job.data.jobId
+      });
+    }
   });
   
   worker.on('failed', async (job, error) => {
     logger.error(`Job ${job?.id} failed: ${error.message}`);
+    
+    // Vérifier si le job a bien des données
+    if (job && job.data && job.data.jobId) {
+      // S'assurer qu'une notification 'failed' est envoyée
+      wsService.updateJobStatus(job.data.jobId, 'failed', {
+        error: error.message,
+        jobId: job.data.jobId
+      });
+    }
   });
   
   worker.on('error', (error) => {

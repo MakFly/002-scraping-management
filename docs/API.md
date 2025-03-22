@@ -249,6 +249,265 @@ interface ResultsResponse {
 }
 ```
 
+### Endpoints Spécifiques à Leboncoin
+
+#### 1. Recherche sur Leboncoin
+
+```typescript
+POST /api/v1/scraping/leboncoin/search
+
+// Request Body
+interface LeboncoinSearchRequest {
+  keywords: string;
+  location?: {
+    city?: string;
+    department?: string;
+    region?: string;
+    radius?: number;  // en km
+  };
+  category?: string;
+  filters?: {
+    price?: {
+      min?: number;
+      max?: number;
+    };
+    rooms?: {
+      min?: number;
+      max?: number;
+    };
+    surface?: {
+      min?: number;
+      max?: number;
+    };
+    year?: {
+      min?: number;
+      max?: number;
+    };
+    mileage?: {
+      min?: number;
+      max?: number;
+    };
+    seller_type?: 'all' | 'private' | 'professional';
+    urgent_only?: boolean;
+    has_photos?: boolean;
+  };
+  sort?: 'date-desc' | 'date-asc' | 'price-desc' | 'price-asc' | 'relevance';
+  page?: number;
+  items_per_page?: number;
+}
+
+// Response 200
+interface LeboncoinSearchResponse {
+  items: Array<{
+    id: string;
+    title: string;
+    price: number;
+    currency: string;
+    location: {
+      city: string;
+      zipCode: string;
+      department: string;
+      region: string;
+      coordinates?: {
+        lat: number;
+        lon: number;
+      };
+    };
+    details: {
+      surface?: number;
+      rooms?: number;
+      type?: string;
+      energy_rating?: string;
+      year?: number;
+      mileage?: number;
+    };
+    description: string;
+    images: Array<{
+      url: string;
+      thumbnail: string;
+    }>;
+    url: string;
+    date: string;
+    seller: {
+      type: 'professional' | 'private';
+      name?: string;
+      siren?: string;
+    };
+    urgent: boolean;
+    metadata: {
+      scrapedAt: string;
+      source: 'leboncoin';
+      version: string;
+    };
+  }>;
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+  stats: {
+    duration: number;
+    timestamp: string;
+  };
+}
+```
+
+#### 2. Détails d'une Annonce
+
+```typescript
+GET /api/v1/scraping/leboncoin/items/:id
+
+// Response 200
+interface LeboncoinItemResponse {
+  id: string;
+  title: string;
+  price: number;
+  currency: string;
+  location: {
+    city: string;
+    zipCode: string;
+    department: string;
+    region: string;
+    coordinates?: {
+      lat: number;
+      lon: number;
+    };
+  };
+  details: {
+    surface?: number;
+    rooms?: number;
+    type?: string;
+    energy_rating?: string;
+    year?: number;
+    mileage?: number;
+    // Autres détails spécifiques à la catégorie
+    [key: string]: any;
+  };
+  description: string;
+  images: Array<{
+    url: string;
+    thumbnail: string;
+  }>;
+  url: string;
+  date: string;
+  seller: {
+    type: 'professional' | 'private';
+    name?: string;
+    siren?: string;
+    otherAds?: number;
+    registrationDate?: string;
+    ratings?: {
+      average: number;
+      count: number;
+    };
+  };
+  urgent: boolean;
+  metadata: {
+    scrapedAt: string;
+    source: 'leboncoin';
+    version: string;
+    category: string;
+    subCategory?: string;
+  };
+  phoneNumber?: string;  // Disponible uniquement si autorisé
+  email?: string;       // Disponible uniquement si autorisé
+}
+```
+
+#### 3. Surveillance d'une Recherche
+
+```typescript
+POST /api/v1/scraping/leboncoin/watch
+
+// Request Body
+interface LeboncoinWatchRequest {
+  name: string;
+  search: LeboncoinSearchRequest;
+  notifications: {
+    email?: {
+      enabled: boolean;
+      frequency: 'instant' | 'hourly' | 'daily';
+      recipients: string[];
+    };
+    webhook?: {
+      enabled: boolean;
+      url: string;
+      headers?: Record<string, string>;
+    };
+    conditions?: {
+      priceBelow?: number;
+      priceDrop?: number;
+      keywords?: string[];
+      excludeKeywords?: string[];
+    };
+  };
+  schedule: string;  // Expression cron
+}
+
+// Response 201
+interface LeboncoinWatchResponse {
+  id: string;
+  name: string;
+  status: 'active';
+  createdAt: string;
+  nextRun: string;
+}
+```
+
+#### 4. Statistiques de Prix
+
+```typescript
+GET /api/v1/scraping/leboncoin/stats/prices
+
+// Query Parameters
+interface PriceStatsQuery {
+  category: string;
+  location?: string;
+  timeframe?: '7d' | '30d' | '90d' | '1y';
+  filters?: Record<string, any>;
+}
+
+// Response 200
+interface PriceStatsResponse {
+  average: number;
+  median: number;
+  min: number;
+  max: number;
+  distribution: Array<{
+    range: {
+      min: number;
+      max: number;
+    };
+    count: number;
+    percentage: number;
+  }>;
+  trends: {
+    daily?: Array<{
+      date: string;
+      average: number;
+      count: number;
+    }>;
+    weekly?: Array<{
+      week: string;
+      average: number;
+      count: number;
+    }>;
+    monthly?: Array<{
+      month: string;
+      average: number;
+      count: number;
+    }>;
+  };
+  metadata: {
+    timeframe: string;
+    totalItems: number;
+    lastUpdated: string;
+  };
+}
+```
+
 ## WebSocket
 
 ### Connexion

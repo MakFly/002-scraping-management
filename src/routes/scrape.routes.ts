@@ -9,17 +9,50 @@ const paginationSchema = z.object({
   limit: z.number().int().min(1).max(100).default(10),
 });
 
-const createJobSchema = z.object({
-  source: z.string(),
-  query: z.string().optional(),
-  pageCount: z.number().int().min(1).max(10).default(1),
-  zip: z.string().optional(),
-  zipr: z.string().optional()
-});
+const createJobSchema = z.discriminatedUnion('source', [
+  z.object({
+    source: z.literal('leboncoin'),
+    params: z.object({
+      filters: z.object({
+        category: z.object({
+          id: z.string()
+        }),
+        enums: z.object({
+          ad_type: z.array(z.string()),
+          u_car_brand: z.array(z.string()).optional()
+        }),
+        location: z.record(z.any())
+      }),
+      limit: z.number(),
+      limit_alu: z.number(),
+      sort_by: z.string(),
+      sort_order: z.enum(['desc', 'asc']),
+      offset: z.number(),
+      extend: z.boolean(),
+      listing_source: z.string()
+    }),
+    pagination: z.number().int().min(1).optional()
+  }),
+  z.object({
+    source: z.literal('autoscout24'),
+    query: z.string().optional(),
+    pageCount: z.number().int().min(1).max(10).default(1),
+    zip: z.string().optional(),
+    zipr: z.string().optional()
+  }),
+  z.object({
+    source: z.literal('ebay'),
+    query: z.string().optional(),
+    pageCount: z.number().int().min(1).max(10).default(1),
+  })
+]);
 
 // Create router
 const router = new Hono();
 const controller = new ScrapeController();
+
+// SSE endpoint for real-time updates
+router.get('/api/v1/scraping/events', (c) => controller.subscribeToEvents(c));
 
 // List jobs with pagination
 router.get('/api/v1/scraping/jobs', zValidator('query', paginationSchema), (c) => controller.getAllScrapeJobs(c));

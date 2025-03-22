@@ -1,5 +1,5 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
-import { ScrapeStrategy, ScrapedData, ScrapedItem, ScraperType, ScraperOptions, ExtendedScrapeJob } from '../../types/Scraper';
+import { ScrapeStrategy, ScrapedData, ScrapedItem, ScraperType, ScraperOptions, ExtendedScrapeJob } from '../../types/scraper.types';
 import { logger } from '../../config/logger';
 import { domainRegistry } from './DomainRegistry';
 import { getExtractor } from './extractors';

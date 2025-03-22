@@ -1,5 +1,5 @@
 export interface ProgressEvent {
-  jobId: string;
+  jobId: number | string;
   progress: number;
   status: string;
   timestamp: string;
@@ -7,14 +7,14 @@ export interface ProgressEvent {
 }
 
 export interface ErrorEvent {
-  jobId: string;
+  jobId: number | string;
   error: string;
   details?: any;
   timestamp: string;
 }
 
 export interface CompleteEvent {
-  jobId: string;
+  jobId: number | string;
   result: {
     success: boolean;
     stats: any;
@@ -28,14 +28,36 @@ export interface WelcomeEvent {
 }
 
 export interface SubscriptionEvent {
-  jobId: string;
+  jobId: number | string;
   timestamp: string;
+}
+
+export interface LogEvent {
+  jobId: number | string;
+  log: string;
+  timestamp: string;
+}
+
+export interface JobStatusEvent {
+  jobId: number | string;
+  status: string;
+  timestamp: string;
+  message?: string;
+  error?: string;
+  result?: any;
+  data?: any;
 }
 
 export type ServerToClientEvents = {
   'welcome': (event: WelcomeEvent) => void;
   'subscribed': (event: SubscriptionEvent) => void;
   'unsubscribed': (event: SubscriptionEvent) => void;
+  'job_update': (event: JobStatusEvent) => void;
+  'job_completed': (event: JobStatusEvent) => void;
+  'job_failed': (event: JobStatusEvent) => void;
+  'job_running': (event: JobStatusEvent) => void;
+  'job_started': (event: JobStatusEvent) => void;
+  'job_log': (event: LogEvent) => void;
   'job:progress': (event: ProgressEvent) => void;
   'job:error': (event: ErrorEvent) => void;
   'job:complete': (event: CompleteEvent) => void;
@@ -45,6 +67,6 @@ export type ServerToClientEvents = {
 }
 
 export type ClientToServerEvents = {
-  'subscribe': (jobId: string) => void;
-  'unsubscribe': (jobId: string) => void;
+  'subscribe': (jobId: number | string) => void;
+  'unsubscribe': (jobId: number | string) => void;
 } 

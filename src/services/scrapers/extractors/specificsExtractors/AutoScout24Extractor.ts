@@ -1,6 +1,6 @@
 import { Page } from 'puppeteer';
 import { BaseExtractor } from '../BaseExtractor';
-import { ScrapedItem, ExtendedScrapeJob } from '../../../../types/Scraper';
+import { ScrapedItem, ExtendedScrapeJob } from '../../../../types/scraper.types';
 import { logger } from '../../../../config/logger';
 import { domainRegistry } from '../../DomainRegistry';
 

@@ -1,4 +1,4 @@
-import { Extractor } from '../../../types/Extractor';
+import { Extractor } from '../../../types/extractor.types';
 import { GenericExtractor } from './GenericExtractor';
 import { AutoScout24Extractor } from './specificsExtractors/AutoScout24Extractor';
 import { EbayExtractor } from './specificsExtractors/EbayExtractor';

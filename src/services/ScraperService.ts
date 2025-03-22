@@ -1,24 +1,26 @@
 import { ScrapeJob } from '../queues/scrape.queue';
-import { ScrapeStrategy, ScrapedData, ScraperType } from '../types/Scraper';
+import { ScrapeStrategy, ScrapedData, ScraperType } from '../types/scraper.types';
 import { logger } from '../config/logger';
 import { domainRegistry } from './scrapers/DomainRegistry';
 import { cheerioStrategy } from './scrapers/CheerioStrategy';
 import { puppeteerStrategy } from './scrapers/PuppeteerStrategy';
+import { leboncoinStrategy } from './scrapers/LeboncoinStrategy';
 
 /**
  * Service principal de scraping qui orchestre les différentes stratégies
  * Implémente une approche progressive avec fallback automatique
  */
 export class ScraperService {
-  private strategies: Map<ScraperType, ScrapeStrategy> = new Map();
+  private strategies: Map<ScraperType | string, ScrapeStrategy> = new Map();
   
   // Cache des stratégies optimales par domaine pour les prochaines requêtes
-  private domainStrategyCache: Map<string, ScraperType> = new Map();
+  private domainStrategyCache: Map<string, ScraperType | string> = new Map();
 
   constructor() {
     // Enregistrer les stratégies disponibles
     this.strategies.set(ScraperType.CHEERIO, cheerioStrategy);
     this.strategies.set(ScraperType.PUPPETEER, puppeteerStrategy);
+    this.strategies.set('leboncoin', leboncoinStrategy);
   }
 
   /**
@@ -26,14 +28,19 @@ export class ScraperService {
    * Choisit automatiquement la meilleure stratégie
    */
   public async scrape(job: ScrapeJob): Promise<ScrapedData> {
-    // Normaliser le domaine
+    // Si c'est une source Leboncoin, utiliser directement la stratégie Leboncoin
+    if (job.source === 'leboncoin') {
+      logger.info('Utilisation de la stratégie API Leboncoin');
+      const strategy = this.getStrategy('leboncoin');
+      return await strategy.scrape(job);
+    }
+
+    // Pour les autres sources, utiliser la logique existante
     const domain = this.normalizeDomain(job.source);
-    
-    // Récupérer la configuration du domaine
     const domainConfig = domainRegistry.getConfig(domain);
     
     if (!domainConfig) {
-      throw new Error(`Aucune configuration trouvée pour le domaine: ${domain}`);
+      logger.warn(`Aucune configuration trouvée pour le domaine: ${domain}, utilisation de la configuration générique`);
     }
     
     // Vérifier si on a déjà une stratégie optimale en cache pour ce domaine
@@ -41,7 +48,7 @@ export class ScraperService {
     
     if (!strategyType) {
       // Si pas en cache, utiliser la stratégie par défaut de la configuration du domaine
-      strategyType = domainConfig.requiresJavaScript 
+      strategyType = domainConfig?.requiresJavaScript 
         ? ScraperType.PUPPETEER 
         : ScraperType.CHEERIO;
     }
@@ -96,7 +103,7 @@ export class ScraperService {
   /**
    * Obtient une stratégie de scraping par son type
    */
-  private getStrategy(type: ScraperType): ScrapeStrategy {
+  private getStrategy(type: ScraperType | string): ScrapeStrategy {
     const strategy = this.strategies.get(type);
     
     if (!strategy) {

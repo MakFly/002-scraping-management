@@ -1,5 +1,5 @@
 import { Page } from 'puppeteer';
-import { ScrapedItem, ExtendedScrapeJob } from './Scraper';
+import { ScrapedItem, ExtendedScrapeJob } from './scraper.types';
 
 /**
  * Interface commune pour tous les extracteurs spécifiques à une source

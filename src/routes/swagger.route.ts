@@ -8,7 +8,7 @@ import {
   ScrapeJobResponseSchema, 
   JobsListResponseSchema,
   JobStatus
-} from '../types/ScrapeJobTypes';
+} from '../types/scrape.job.types';
 
 // Create an OpenAPI Hono instance
 export const createSwaggerRoute = () => {

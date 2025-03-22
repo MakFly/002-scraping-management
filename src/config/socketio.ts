@@ -1,6 +1,6 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { serve } from '@hono/node-server';
-import { ClientToServerEvents, ServerToClientEvents } from '../types/socketio';
+import { ClientToServerEvents, ServerToClientEvents } from '../types/socketio.types';
 import { logger } from './logger';
 import chalk from 'chalk';
 
@@ -19,9 +19,11 @@ export const configureSocketIO = (server: ReturnType<typeof serve>) => {
 
   const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(server, {
     cors: {
-      origin: process.env.CORS_ORIGIN || '*',
-      methods: ['GET', 'POST']
-    }
+      origin: process.env.FRONTEND_URL || ['http://localhost:5173', 'http://localhost:3000'],
+      methods: ['GET', 'POST'],
+      credentials: true
+    },
+    transports: ['websocket', 'polling']
   });
 
   io.on('connection', (socket) => {
@@ -41,6 +43,9 @@ export const configureSocketIO = (server: ReturnType<typeof serve>) => {
         jobId,
         timestamp: new Date().toISOString()
       });
+
+      // Envoyer l'état actuel du job
+      emitJobState(io, jobId);
     });
 
     // Gérer les désinscriptions
@@ -62,4 +67,28 @@ export const configureSocketIO = (server: ReturnType<typeof serve>) => {
   logger.info(chalk.green.bold('✅ Socket.IO initialisé avec succès\n'));
   
   return io;
+};
+
+// Fonction pour envoyer l'état actuel d'un job
+const emitJobState = async (io: any, jobId: string) => {
+  try {
+    // Vous pouvez récupérer les informations du job depuis la base de données ici
+    // Exemple avec Prisma:
+    // const job = await prisma.scrapeJob.findUnique({
+    //   where: { id: Number(jobId) }
+    // });
+
+    // Pour l'instant, envoyons un message simplifié
+    io.to(`job:${jobId}`).emit('event', {
+      type: 'job:state',
+      jobId,
+      timestamp: new Date().toISOString(),
+      data: {
+        message: 'État initial du job',
+        status: 'pending'
+      }
+    });
+  } catch (error) {
+    logger.error('Erreur lors de l\'émission de l\'état du job:', error);
+  }
 }; 

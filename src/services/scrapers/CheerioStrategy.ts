@@ -6,7 +6,7 @@ import {
   ScraperType,
   ScraperOptions,
   ExtendedScrapeJob,
-} from "../../types/Scraper";
+} from "../../types/scraper.types";
 import { logger } from "../../config/logger";
 import { domainRegistry } from "./DomainRegistry";
 

@@ -1,6 +1,6 @@
 import { PrismaClient, ScrapeJobHistory } from '@prisma/client';
 import { Queue } from 'bullmq';
-import { ScrapeJobRequest } from '../types/ScrapeJobTypes';
+import { ScrapeJobRequest } from '../types/scrape.job.types';
 import { logger } from '../config/logger';
 import redisConnection from '@/config/redis';
 
@@ -234,5 +234,33 @@ export class ScrapeJobService {
       failedToday,
       totalItemsScraped: totalScraped._sum.itemsScraped || 0
     };
+  }
+
+  async saveResults(jobId: number, results: any[]) {
+    try {
+      // Créer une entrée dans l'historique
+      const history = await this.prisma.scrapeJobHistory.create({
+        data: {
+          jobId: jobId,
+          status: 'completed',
+          startTime: new Date(),
+          endTime: new Date(),
+          itemsScraped: results.length,
+          errors: [],
+          logs: [JSON.stringify(results)]
+        }
+      });
+
+      // Mettre à jour le statut du job
+      await this.prisma.scrapeJob.update({
+        where: { id: jobId },
+        data: { status: 'completed' }
+      });
+
+      return history;
+    } catch (error) {
+      logger.error('Error saving results:', error);
+      throw error;
+    }
   }
 } 

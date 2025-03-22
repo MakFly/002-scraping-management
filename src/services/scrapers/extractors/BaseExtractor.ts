@@ -1,6 +1,6 @@
 import { Page } from 'puppeteer';
-import { Extractor } from '../../../types/Extractor';
-import { ScrapedItem, ExtendedScrapeJob } from '../../../types/Scraper';
+import { Extractor } from '../../../types/extractor.types';
+import { ScrapedItem, ExtendedScrapeJob } from '../../../types/scraper.types';
 
 /**
  * Extracteur de base avec implémentations partagées

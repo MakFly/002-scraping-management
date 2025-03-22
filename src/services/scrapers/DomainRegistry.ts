@@ -1,4 +1,4 @@
-import { DomainConfig, DomainRegistry, ScraperType } from '../../types/Scraper';
+import { DomainConfig, DomainRegistry, ScraperType } from '../../types/scraper.types';
 import { logger } from '../../config/logger';
 
 /**
@@ -163,7 +163,7 @@ export class ScraperDomainRegistry implements DomainRegistry {
       // Options supplémentaires spécifiques à AutoScout24
       options: {
         baseUrl: 'https://www.autoscout24.fr/lst',
-        defaultSearchUrl: 'https://www.autoscout24.fr/lst?atype=C&cy=F&desc=0&kmto=90000&mmmv=47%7C%7C%7C%2C13%7C%7C%7C%2C9%7C%7C%7C&page=1&powertype=kw&pricefrom=5000&priceto=100000&search_id=1wz8gihtx2n&sort=standard&source=listpage_pagination&ustate=N%2CU',
+        defaultSearchUrl: 'https://www.autoscout24.fr/lst?atype=C&cy=F&damaged_listing=exclude&desc=0&kmto=90000&powertype=kw&pricefrom=10000&priceto=100000&search_id=82lwivz6ug&sort=standard&source=listpage_pagination&ustate=N%2CU',
         maxPages: 15,
         defaultStartPage: 1,
         defaultPageCount: 1,

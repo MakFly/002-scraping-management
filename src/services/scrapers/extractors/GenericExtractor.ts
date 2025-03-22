@@ -1,6 +1,6 @@
 import { Page } from 'puppeteer';
 import { BaseExtractor } from './BaseExtractor';
-import { ScrapedItem } from '../../../types/Scraper';
+import { ScrapedItem } from '../../../types/scraper.types';
 
 /**
  * Extracteur générique pour les sources sans logique spécifique

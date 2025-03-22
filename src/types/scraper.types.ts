@@ -3,6 +3,7 @@ import { ScrapeJob as BullScrapeJob } from '../queues/scrape.queue';
 export enum ScraperType {
   CHEERIO = 'cheerio',
   PUPPETEER = 'puppeteer',
+  LEBONCOIN = 'leboncoin'
 }
 
 export interface ScrapedData {

@@ -1,6 +1,6 @@
 import { Page } from 'puppeteer';
 import { BaseExtractor } from '../BaseExtractor';
-import { ScrapedItem, ExtendedScrapeJob } from '../../../../types/Scraper';
+import { ScrapedItem, ExtendedScrapeJob } from '../../../../types/scraper.types';
 
 /**
  * Extracteur spécifique pour eBay

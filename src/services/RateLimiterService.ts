@@ -1,5 +1,5 @@
 import { logger } from '../config/logger';
-import { RateLimitConfig, IRateLimiterService } from '../types/RateLimiter';
+import { RateLimitConfig, IRateLimiterService } from '../types/rate.limiter.types';
 
 export class RateLimiterService implements IRateLimiterService {
   private rateLimiter = new Map<string, { count: number, timestamp: number }>();

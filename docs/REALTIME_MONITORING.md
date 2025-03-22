@@ -10,6 +10,7 @@
 6. [Interface Utilisateur](#interface-utilisateur)
 7. [Configuration](#configuration)
 8. [Bonnes Pratiques](#bonnes-pratiques)
+9. [Monitoring Spécifique Leboncoin](#monitoring-spécifique-leboncoin)
 
 ## Vue d'ensemble
 
@@ -363,4 +364,352 @@ interface ReliabilityConfig {
     ttl: number;
   };
 }
+```
+
+## Monitoring Spécifique Leboncoin
+
+### 1. Métriques Temps Réel
+
+```typescript
+interface LeboncoinMetrics {
+  // Métriques générales
+  general: {
+    activeJobs: number;
+    queuedJobs: number;
+    completedJobs: number;
+    failedJobs: number;
+    totalItemsScraped: number;
+    averageScrapingTime: number;
+  };
+  
+  // Métriques de performance
+  performance: {
+    responseTime: {
+      min: number;
+      max: number;
+      avg: number;
+      p95: number;
+      p99: number;
+    };
+    successRate: number;
+    errorRate: number;
+    retryRate: number;
+  };
+  
+  // Métriques de détection anti-bot
+  antiBot: {
+    captchaEncounters: number;
+    blockingEvents: number;
+    ipRotations: number;
+    sessionResets: number;
+  };
+  
+  // Métriques de ressources
+  resources: {
+    cpuUsage: number;
+    memoryUsage: number;
+    activeConnections: number;
+    browserInstances: number;
+  };
+}
+```
+
+### 2. Dashboard Temps Réel
+
+```typescript
+// Configuration du dashboard
+const dashboardConfig = {
+  refreshInterval: 5000,  // 5 secondes
+  retentionPeriod: '24h',
+  alerts: {
+    errorRate: {
+      threshold: 0.1,  // 10%
+      interval: '5m'
+    },
+    responseTime: {
+      threshold: 5000,  // 5 secondes
+      interval: '1m'
+    },
+    captcha: {
+      threshold: 5,
+      interval: '15m'
+    }
+  }
+};
+
+// Composants du dashboard
+interface DashboardComponents {
+  // Vue d'ensemble
+  overview: {
+    activeJobs: Widget<number>;
+    successRate: Widget<number>;
+    itemsScraped: Widget<number>;
+    alerts: Widget<Alert[]>;
+  };
+  
+  // Graphiques de performance
+  charts: {
+    responseTime: LineChart;
+    successRate: LineChart;
+    itemsPerMinute: LineChart;
+    resourceUsage: AreaChart;
+  };
+  
+  // Tableau des jobs actifs
+  activeJobs: {
+    id: string;
+    status: string;
+    progress: number;
+    itemsScraped: number;
+    startTime: string;
+    estimatedCompletion: string;
+    errors: string[];
+  }[];
+  
+  // Logs en temps réel
+  logs: {
+    timestamp: string;
+    level: 'info' | 'warning' | 'error';
+    message: string;
+    jobId?: string;
+    details?: any;
+  }[];
+}
+```
+
+### 3. WebSocket Events
+
+```typescript
+// Événements émis par le serveur
+interface ServerEvents {
+  // Mise à jour des métriques
+  'metrics:update': (metrics: LeboncoinMetrics) => void;
+  
+  // Événements de job
+  'job:started': (job: JobInfo) => void;
+  'job:progress': (progress: JobProgress) => void;
+  'job:completed': (result: JobResult) => void;
+  'job:error': (error: JobError) => void;
+  
+  // Événements de scraping
+  'scraping:item': (item: ScrapedItem) => void;
+  'scraping:page': (pageInfo: PageInfo) => void;
+  'scraping:error': (error: ScrapingError) => void;
+  
+  // Alertes
+  'alert:triggered': (alert: Alert) => void;
+  'alert:resolved': (alert: Alert) => void;
+}
+
+// Événements envoyés par le client
+interface ClientEvents {
+  // Contrôle des jobs
+  'job:pause': (jobId: string) => void;
+  'job:resume': (jobId: string) => void;
+  'job:cancel': (jobId: string) => void;
+  
+  // Configuration du monitoring
+  'monitoring:configure': (config: MonitoringConfig) => void;
+  'monitoring:subscribe': (filters: EventFilters) => void;
+  'monitoring:unsubscribe': (filters: EventFilters) => void;
+}
+```
+
+### 4. Alertes et Notifications
+
+```typescript
+interface AlertConfig {
+  // Configuration des seuils
+  thresholds: {
+    errorRate: {
+      warning: number;    // ex: 0.05 (5%)
+      critical: number;   // ex: 0.10 (10%)
+    };
+    responseTime: {
+      warning: number;    // ex: 3000ms
+      critical: number;   // ex: 5000ms
+    };
+    captchaRate: {
+      warning: number;    // ex: 0.02 (2%)
+      critical: number;   // ex: 0.05 (5%)
+    };
+    successRate: {
+      warning: number;    // ex: 0.95 (95%)
+      critical: number;   // ex: 0.90 (90%)
+    };
+  };
+  
+  // Canaux de notification
+  channels: {
+    email: {
+      enabled: boolean;
+      recipients: string[];
+      cooldown: number;  // Délai minimum entre notifications
+    };
+    slack: {
+      enabled: boolean;
+      webhook: string;
+      channel: string;
+      mentions: string[];
+    };
+    webhook: {
+      enabled: boolean;
+      url: string;
+      headers: Record<string, string>;
+    };
+  };
+  
+  // Règles de notification
+  rules: Array<{
+    condition: AlertCondition;
+    severity: 'info' | 'warning' | 'critical';
+    message: string;
+    channels: string[];
+  }>;
+}
+
+// Exemple d'utilisation
+const monitoring = new LeboncoinMonitoring({
+  // Configuration du monitoring
+  config: {
+    metrics: {
+      enabled: true,
+      interval: 5000,
+      retention: '24h'
+    },
+    alerts: alertConfig,
+    dashboard: dashboardConfig
+  },
+  
+  // Handlers d'événements
+  handlers: {
+    onMetricsUpdate: (metrics: LeboncoinMetrics) => {
+      // Mise à jour du dashboard
+      dashboard.update(metrics);
+      
+      // Vérification des alertes
+      alertManager.check(metrics);
+    },
+    
+    onJobProgress: (progress: JobProgress) => {
+      // Mise à jour de la progression
+      dashboard.updateJob(progress);
+      
+      // Estimation du temps restant
+      const eta = estimateCompletion(progress);
+      dashboard.updateETA(progress.jobId, eta);
+    },
+    
+    onError: (error: ScrapingError) => {
+      // Logging de l'erreur
+      logger.error(error);
+      
+      // Notification si nécessaire
+      if (error.severity === 'critical') {
+        notificationManager.notify({
+          type: 'error',
+          message: `Erreur critique: ${error.message}`,
+          details: error
+        });
+      }
+    }
+  }
+});
+
+// Démarrage du monitoring
+monitoring.start();
+```
+
+### 5. Visualisation des Données
+
+```typescript
+interface DashboardViews {
+  // Vue générale
+  overview: {
+    component: 'Overview';
+    data: {
+      activeJobs: number;
+      successRate: number;
+      itemsScraped: number;
+      alerts: Alert[];
+    };
+    refresh: 5000;  // ms
+  };
+  
+  // Vue performance
+  performance: {
+    component: 'Performance';
+    data: {
+      charts: {
+        responseTime: TimeSeriesData;
+        successRate: TimeSeriesData;
+        throughput: TimeSeriesData;
+      };
+      stats: {
+        avg: number;
+        p95: number;
+        p99: number;
+      };
+    };
+    refresh: 10000;  // ms
+  };
+  
+  // Vue détaillée des jobs
+  jobs: {
+    component: 'JobsList';
+    data: {
+      active: Job[];
+      completed: Job[];
+      failed: Job[];
+    };
+    refresh: 5000;  // ms
+  };
+  
+  // Vue des erreurs
+  errors: {
+    component: 'ErrorLog';
+    data: {
+      recent: ScrapingError[];
+      trends: {
+        byType: Record<string, number>;
+        byTime: TimeSeriesData;
+      };
+    };
+    refresh: 15000;  // ms
+  };
+}
+
+// Configuration des graphiques
+const chartConfig = {
+  responseTime: {
+    type: 'line',
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: 'Temps de réponse (ms)'
+        }
+      },
+      plugins: {
+        annotation: {
+          annotations: {
+            warning: {
+              type: 'line',
+              yMin: 3000,
+              yMax: 3000,
+              borderColor: 'orange'
+            },
+            critical: {
+              type: 'line',
+              yMin: 5000,
+              yMax: 5000,
+              borderColor: 'red'
+            }
+          }
+        }
+      }
+    }
+  },
+  // ... autres configurations de graphiques
+};
 ``` 
