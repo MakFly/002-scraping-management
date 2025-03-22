@@ -30,29 +30,46 @@ export class PuppeteerStrategy implements ScrapeStrategy {
    */
   public async scrape(job: ExtendedScrapeJob): Promise<ScrapedData> {
     const startTime = Date.now();
-    logger.info(`Début du scraping avec Puppeteer pour ${job.source}`);
-    
-    let browser: Browser | null = null;
     let page: Page | null = null;
-    
+    let pageTitle = '';
+    let allItems: ScrapedItem[] = [];
+
     try {
       // Récupérer la configuration du domaine
       const domainConfig = domainRegistry.getConfig(job.source);
-      
       if (!domainConfig) {
-        throw new Error(`Aucune configuration trouvée pour le domaine: ${job.source}`);
+        throw new Error(`Configuration non trouvée pour le domaine: ${job.source}`);
       }
-      
-      // Sélectionner l'extracteur spécifique à la source
+
+      // Récupérer l'extracteur approprié
       const extractor = getExtractor(job.source);
-      
-      // Lancer le navigateur
-      browser = await this.getBrowser();
-      
+      if (!extractor) {
+        throw new Error(`Extracteur non trouvé pour le domaine: ${job.source}`);
+      }
+
+      // Créer un navigateur si nécessaire
+      const browser = await this.getBrowser();
+
       // Déterminer le nombre de pages à scraper
-      const pageCount = job.pageCount || 1;
-      let allItems: ScrapedItem[] = [];
-      let pageTitle = '';
+      let pageCount = job.pageCount || domainConfig.options?.defaultPageCount || 1;
+      
+      // Créer la première page pour vérifier le nombre total de pages
+      page = await browser.newPage();
+      await this.setupPage(page);
+      
+      // Charger la première page
+      const firstPageUrl = extractor.buildUrl(job.source, job.query || '', 1, job);
+      await page.goto(firstPageUrl, {
+        waitUntil: 'networkidle2',
+        timeout: this.options.timeout
+      });
+
+      // Vérifier le nombre total de pages disponibles
+      const availablePages = await this.checkTotalPages(page, job.source);
+      if (availablePages > 0) {
+        pageCount = Math.min(pageCount, availablePages);
+        logger.info(`Nombre de pages ajusté à ${pageCount} (disponible: ${availablePages})`);
+      }
       
       // Itérer sur les pages
       for (let currentPage = 1; currentPage <= pageCount; currentPage++) {
@@ -67,41 +84,53 @@ export class PuppeteerStrategy implements ScrapeStrategy {
           await this.setupPage(page);
         }
         
-        // Naviguer vers l'URL
-        await page.goto(url, {
-          waitUntil: 'networkidle2',
-          timeout: this.options.timeout
-        });
-        
-        // Attendre que le contenu soit chargé
-        await this.waitForContent(page, domainConfig.selectors);
-        
-        // Extraire les données
-        if (currentPage === 1) {
-          pageTitle = await page.title();
-        }
-        
-        // Utiliser l'extracteur pour obtenir les éléments
-        const items = await extractor.extractItems(page, domainConfig.selectors);
-        allItems = [...allItems, ...items];
-        
-        // Si c'est la dernière page, on sort de la boucle
-        if (currentPage === pageCount) {
-          break;
-        }
-        
-        // Utiliser la gestion de pagination spécifique à l'extracteur si disponible
-        if (extractor.handlePagination && extractor.handlePagination(currentPage, pageCount, job)) {
-          // Ajouter un délai entre les pages
-          if (currentPage < pageCount) {
-            // Utiliser des délais spécifiques au domaine si disponibles
-            const minDelay = domainConfig.options?.puppeteerOptions?.delayBetweenPages?.min || 1500;
-            const maxDelay = domainConfig.options?.puppeteerOptions?.delayBetweenPages?.max || 2500;
-            const delay = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
-            
-            await this.delay(delay);
+        try {
+          // Naviguer vers l'URL
+          await page.goto(url, {
+            waitUntil: 'networkidle2',
+            timeout: this.options.timeout
+          });
+
+          // Attendre que le contenu soit chargé
+          await this.waitForContent(page, domainConfig.selectors);
+          
+          // Extraire les données
+          if (currentPage === 1) {
+            pageTitle = await page.title();
           }
           
+          // Utiliser l'extracteur pour obtenir les éléments
+          const items = await extractor.extractItems(page, domainConfig.selectors);
+          allItems = [...allItems, ...items];
+          
+          // Si c'est la dernière page, on sort de la boucle
+          if (currentPage === pageCount) {
+            break;
+          }
+          
+          // Utiliser la gestion de pagination spécifique à l'extracteur si disponible
+          if (extractor.handlePagination && extractor.handlePagination(currentPage, pageCount, job)) {
+            // Ajouter un délai entre les pages
+            if (currentPage < pageCount) {
+              // Utiliser des délais spécifiques au domaine si disponibles
+              const minDelay = domainConfig.options?.puppeteerOptions?.delayBetweenPages?.min || 1500;
+              const maxDelay = domainConfig.options?.puppeteerOptions?.delayBetweenPages?.max || 2500;
+              const delay = Math.floor(Math.random() * (maxDelay - minDelay)) + minDelay;
+              
+              await this.delay(delay);
+            }
+            
+            continue;
+          }
+
+        } catch (error) {
+          logger.warn(`Erreur sur la page ${currentPage}: ${error}`);
+          // Si pas de contenu trouvé, on arrête le scraping
+          if (error instanceof Error && (error.message.includes('No content found on page') || error.message.includes('Timeout'))) {
+            logger.info(`Arrêt du scraping: plus de contenu disponible après la page ${currentPage - 1}`);
+            break;
+          }
+          // Pour les autres erreurs, on continue avec la page suivante
           continue;
         }
         
@@ -154,7 +183,6 @@ export class PuppeteerStrategy implements ScrapeStrategy {
       if (page) {
         await page.close().catch(e => logger.warn(`Erreur lors de la fermeture de la page: ${e}`));
       }
-      
       // Ne pas fermer le navigateur ici pour permettre sa réutilisation
       // Il sera fermé automatiquement lors de la fin du processus ou par une méthode cleanup explicite
     }
@@ -227,6 +255,16 @@ export class PuppeteerStrategy implements ScrapeStrategy {
         timeout: this.options.timeout 
       });
       
+      // Vérifier si la page contient des articles
+      const hasContent = await page.evaluate((selector) => {
+        const articles = document.querySelectorAll(selector);
+        return articles.length > 0;
+      }, selectors.container);
+
+      if (!hasContent) {
+        throw new Error('No content found on page');
+      }
+      
       // Récupérer le domaine depuis l'URL actuelle
       const domain = new URL(page.url()).hostname;
       
@@ -241,7 +279,7 @@ export class PuppeteerStrategy implements ScrapeStrategy {
       
     } catch (error) {
       logger.warn(`Timeout en attendant le contenu: ${error}`);
-      // On continue quand même, peut-être que certains éléments sont disponibles
+      throw error; // Remonter l'erreur pour arrêter le scraping de cette page
     }
   }
 
@@ -295,6 +333,45 @@ export class PuppeteerStrategy implements ScrapeStrategy {
   // Dans les méthodes où nous utilisons page.waitForTimeout, utiliser setTimeout avec Promise
   private async delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Vérifie le nombre total de pages disponibles
+   */
+  private async checkTotalPages(page: Page, source: string): Promise<number> {
+    try {
+      // Vérifier spécifiquement pour AutoScout24
+      if (source.includes('autoscout24')) {
+        // Attendre un peu que la pagination soit chargée
+        await this.delay(1000);
+
+        const totalPages = await page.evaluate(() => {
+          // Trouver tous les boutons de pagination
+          const buttons = document.querySelectorAll('.scr-pagination button');
+          let maxPage = 1;
+
+          // Parcourir tous les boutons pour trouver le plus grand numéro
+          buttons.forEach(button => {
+            const text = button.textContent?.trim();
+            if (text) {
+              const num = parseInt(text);
+              if (!isNaN(num) && num > maxPage) {
+                maxPage = num;
+              }
+            }
+          });
+
+          return maxPage;
+        });
+
+        logger.info(`Nombre total de pages détecté: ${totalPages}`);
+        return totalPages;
+      }
+      return -1; // -1 indique qu'on ne peut pas déterminer le nombre de pages
+    } catch (error) {
+      logger.warn(`Erreur lors de la vérification du nombre de pages: ${error}`);
+      return -1;
+    }
   }
 }
 

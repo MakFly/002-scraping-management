@@ -27,7 +27,7 @@ export class WebSocketService {
       socket.on('subscribe', async (jobId: string) => {
         try {
           const job = await prisma.scrapeJob.findUnique({
-            where: { id: jobId }
+            where: { id: parseInt(jobId) }
           });
 
           if (!job) {
@@ -51,13 +51,12 @@ export class WebSocketService {
             timestamp: new Date().toISOString(),
             data: {
               status: job.status,
-              config: job.config
             }
           });
 
           // Send recent history
           const history = await prisma.scrapeJobHistory.findMany({
-            where: { jobId },
+            where: { jobId: parseInt(jobId) },
             orderBy: { startTime: 'desc' },
             take: 50
           });
@@ -100,16 +99,16 @@ export class WebSocketService {
   }
 
   // Emit event to specific job subscribers
-  public emitToJob(jobId: string, event: WebSocketEvent) {
+  public emitToJob(jobId: number, event: WebSocketEvent) {
     this.io.to(`job:${jobId}`).emit('event', event);
   }
 
   // Add log entry to job
-  public async addJobLog(jobId: string, message: string) {
+  public async addJobLog(jobId: number, message: string) {
     try {
       const history = await prisma.scrapeJobHistory.findFirst({
         where: { 
-          jobId,
+          jobId: jobId,
           status: 'running'
         },
         orderBy: {
@@ -129,7 +128,7 @@ export class WebSocketService {
 
         this.emitToJob(jobId, {
           type: 'item_scraped',
-          jobId,
+          jobId: jobId.toString(),
           timestamp: new Date().toISOString(),
           data: { message }
         });
@@ -140,7 +139,7 @@ export class WebSocketService {
   }
 
   // Update job status
-  public async updateJobStatus(jobId: string, status: string, data: any = {}) {
+  public async updateJobStatus(jobId: number, status: string, data: any = {}) {
     try {
       await prisma.scrapeJob.update({
         where: { id: jobId },
@@ -149,7 +148,7 @@ export class WebSocketService {
 
       this.emitToJob(jobId, {
         type: `job_${status}` as WebSocketEvent['type'],
-        jobId,
+        jobId: jobId.toString(),
         timestamp: new Date().toISOString(),
         data
       });
