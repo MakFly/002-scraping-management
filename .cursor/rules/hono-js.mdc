@@ -6,17 +6,17 @@ alwaysApply: true
 # Hono.js Cursor Pagination Best Practices
 
 ## Table of Contents
-1. [Introduction](#introduction)
-2. [Cursor Encoding/Decoding](#1-cursor-encodingdecoding)
-3. [Cursor Schema Validation](#2-cursor-schema-validation)
-4. [Reusable Pagination Handler](#3-reusable-pagination-handler)
-5. [Practical Example: Users Endpoint](#4-practical-example-users-endpoint)
-6. [Bidirectional Pagination](#5-bidirectional-pagination)
-7. [Cursor with Complex Filtering](#6-cursor-with-complex-filtering)
-8. [Cursor with Compound Keys](#7-cursor-with-compound-keys)
-9. [Error Handling for Cursors](#8-error-handling-for-cursors)
-10. [Handling Stale Cursors](#9-handling-stale-cursors-with-graceful-fallbacks)
-11. [Client Usage Example](#10-client-usage-example)
+1. [Introduction](mdc:#introduction)
+2. [Cursor Encoding/Decoding](mdc:#1-cursor-encodingdecoding)
+3. [Cursor Schema Validation](mdc:#2-cursor-schema-validation)
+4. [Reusable Pagination Handler](mdc:#3-reusable-pagination-handler)
+5. [Practical Example: Users Endpoint](mdc:#4-practical-example-users-endpoint)
+6. [Bidirectional Pagination](mdc:#5-bidirectional-pagination)
+7. [Cursor with Complex Filtering](mdc:#6-cursor-with-complex-filtering)
+8. [Cursor with Compound Keys](mdc:#7-cursor-with-compound-keys)
+9. [Error Handling for Cursors](mdc:#8-error-handling-for-cursors)
+10. [Handling Stale Cursors](mdc:#9-handling-stale-cursors-with-graceful-fallbacks)
+11. [Client Usage Example](mdc:#10-client-usage-example)
 
 ## Introduction
 

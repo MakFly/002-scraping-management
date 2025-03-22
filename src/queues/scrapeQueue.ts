@@ -10,6 +10,7 @@ export const ScrapeJobSchema = z.object({
     // Nouveaux paramètres spécifiques pour AutoScout24
     zip: z.string().optional(), // Code postal
     zipr: z.string().optional(), // Rayon autour du code postal
+    jobId: z.number() // Add jobId field
 });
 
 export type ScrapeJob = z.infer<typeof ScrapeJobSchema>;

@@ -14,6 +14,7 @@ Ce projet peut être déployé de plusieurs façons, selon vos besoins et votre 
 
 Quelle que soit la méthode de déploiement, vous aurez besoin de :
 
+- Une instance PostgreSQL (accessible depuis l'application)
 - Une instance Redis (accessible depuis l'application)
 - Node.js v20 ou supérieur (si déploiement manuel)
 - Docker et Docker Compose (si déploiement Docker)
@@ -39,6 +40,7 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraping?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
@@ -47,10 +49,26 @@ services:
       - REQUEST_TIMEOUT=5000
     depends_on:
       - redis
+      - postgres
+  
   redis:
     image: redis:6-alpine
     ports:
       - "6379:6379"
+  
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: scraping
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
 ```
 
 3. Construisez et démarrez les services :
@@ -95,6 +113,7 @@ pnpm install
 3. Configurez les variables d'environnement dans un fichier `.env` :
 ```
 PORT=3000
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/scraping?schema=public
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
@@ -131,6 +150,7 @@ module.exports = {
     env: {
       NODE_ENV: "production",
       PORT: 3000,
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/scraping?schema=public",
       REDIS_HOST: "localhost",
       REDIS_PORT: 6379,
       REDIS_PASSWORD: "",
@@ -211,6 +231,7 @@ This project can be deployed in several ways, depending on your needs and infras
 
 Regardless of the deployment method, you will need:
 
+- A PostgreSQL instance (accessible from the application)
 - A Redis instance (accessible from the application)
 - Node.js v20 or higher (if manual deployment)
 - Docker and Docker Compose (if Docker deployment)
@@ -236,6 +257,7 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraping?schema=public
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
@@ -244,10 +266,26 @@ services:
       - REQUEST_TIMEOUT=5000
     depends_on:
       - redis
+      - postgres
+  
   redis:
     image: redis:6-alpine
     ports:
       - "6379:6379"
+  
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: scraping
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
 ```
 
 3. Build and start the services:
@@ -292,6 +330,7 @@ pnpm install
 3. Configure environment variables in a `.env` file:
 ```
 PORT=3000
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/scraping?schema=public
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
@@ -328,6 +367,7 @@ module.exports = {
     env: {
       NODE_ENV: "production",
       PORT: 3000,
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/scraping?schema=public",
       REDIS_HOST: "localhost",
       REDIS_PORT: 6379,
       REDIS_PASSWORD: "",
@@ -390,4 +430,4 @@ To handle higher loads, you can:
 
 1. **Add More Workers**: Increase the number of worker instances to process more tasks in parallel
 2. **Scale Horizontally**: Deploy multiple instances of the API behind a load balancer
-3. **Optimize Redis**: Configure Redis for better performance or use a Redis cluster 
+3. **Optimize Redis** : Configure Redis for better performance or use a Redis cluster 

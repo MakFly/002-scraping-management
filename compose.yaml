@@ -5,6 +5,7 @@ services:
   #     - "3000:3000"
   #   environment:
   #     - PORT=3000
+  #     - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/scraping?schema=public
   #     - REDIS_HOST=redis
   #     - REDIS_PORT=6379
   #     - REDIS_PASSWORD=
@@ -13,7 +14,52 @@ services:
   #     - REQUEST_TIMEOUT=5000
   #   depends_on:
   #     - redis
+  #     - postgres
+
   redis:
     image: redis:6-alpine
     ports:
       - "6379:6379"
+
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: scraping
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+      timeout: 5s
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - 8080:8080
+    environment:
+      - ADMINER_DESIGN=default
+      - ADMINER_DEFAULT_SERVER=postgres
+      - ADMINER_DEFAULT_USERNAME=postgres
+      - ADMINER_DEFAULT_PASSWORD=postgres
+      - ADMINER_DEFAULT_DB=scraping
+    volumes:
+      - adminer:/var/www/html
+      
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    ports:
+      - 8888:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  postgres_data:
+  adminer:

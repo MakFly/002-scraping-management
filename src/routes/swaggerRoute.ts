@@ -15,194 +15,215 @@ export const createSwaggerRoute = () => {
   const app = new OpenAPIHono();
 
   // Define API documentation tags
-  const tags = ['Scraping'];
+  const tags = ['Scraping Jobs', 'Statistics', 'Monitoring'];
 
-  // Define API routes with OpenAPI metadata that match the actual routes
-  const createScrapeJobRoute = createRoute({
+  // Common schemas
+  const PaginationSchema = z.object({
+    cursor: z.string().optional(),
+    limit: z.number().int().min(1).max(100).default(10),
+  });
+
+  const PageInfoSchema = z.object({
+    hasNextPage: z.boolean(),
+    nextCursor: z.string().nullable(),
+    count: z.number(),
+  });
+
+  const JobHistoryEntrySchema = z.object({
+    startTime: z.string(),
+    endTime: z.string(),
+    status: z.string(),
+    itemsScraped: z.number(),
+    errors: z.array(z.string()).optional(),
+  });
+
+  const StatsSchema = z.object({
+    totalJobs: z.number(),
+    activeJobs: z.number(),
+    completedToday: z.number(),
+    failedToday: z.number(),
+    totalItemsScraped: z.number(),
+  });
+
+  // GET /api/v1/scraping/jobs
+  const listJobsRoute = createRoute({
+    method: 'get',
+    path: '/api/v1/scraping/jobs',
+    tags: ['Scraping Jobs'],
+    request: {
+      query: PaginationSchema,
+    },
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              items: z.array(ScrapeJobResponseSchema),
+              pageInfo: PageInfoSchema,
+            }),
+          },
+        },
+        description: 'List of scraping jobs with pagination',
+      },
+    },
+  });
+
+  // POST /api/v1/scraping/jobs
+  const createJobRoute = createRoute({
     method: 'post',
-    path: '/api/scrape',
-    tags,
+    path: '/api/v1/scraping/jobs',
+    tags: ['Scraping Jobs'],
     request: {
       body: {
         content: {
           'application/json': {
-            schema: ScrapeJobRequestSchema,
+            schema: z.object({
+              name: z.string(),
+              target: z.string(),
+              schedule: z.string().optional(),
+              config: z.record(z.any()),
+            }),
           },
         },
       },
     },
     responses: {
-      200: {
+      201: {
         content: {
           'application/json': {
             schema: ScrapeJobResponseSchema,
           },
+
         },
-        description: 'Scraping job created successfully',
-      },
-      400: {
-        content: {
-          'application/json': {
-            schema: ScrapeJobResponseSchema,
-          },
-        },
-        description: 'Invalid request parameters',
-      },
-      429: {
-        content: {
-          'application/json': {
-            schema: ScrapeJobResponseSchema,
-          },
-        },
-        description: 'Rate limit exceeded',
-      },
-      500: {
-        content: {
-          'application/json': {
-            schema: ScrapeJobResponseSchema,
-          },
-        },
-        description: 'Server error',
+        description: 'Job created successfully',
       },
     },
   });
 
-  const getScrapeJobRoute = createRoute({
+  // GET /api/v1/scraping/jobs/:id
+  const getJobRoute = createRoute({
     method: 'get',
-    path: '/api/scrape/{id}',
-    tags,
+    path: '/api/v1/scraping/jobs/{id}',
+    tags: ['Scraping Jobs'],
     request: {
       params: z.object({
-        id: z.string().openapi({
-          example: '123e4567-e89b-12d3-a456-426614174000',
-          description: 'The job ID to fetch',
-        }),
+        id: z.string(),
       }),
     },
     responses: {
       200: {
         content: {
           'application/json': {
-            schema: ScrapeJobResponseSchema,
+            schema: z.object({
+              ...ScrapeJobResponseSchema.shape,
+              history: z.array(JobHistoryEntrySchema),
+            }),
           },
+
         },
-        description: 'Scraping job details',
-      },
-      404: {
-        content: {
-          'application/json': {
-            schema: ScrapeJobResponseSchema,
-          },
-        },
-        description: 'Job not found',
-      },
-      500: {
-        content: {
-          'application/json': {
-            schema: ScrapeJobResponseSchema,
-          },
-        },
-        description: 'Server error',
+        description: 'Job details with history',
       },
     },
   });
 
-  const getAllScrapeJobsRoute = createRoute({
-    method: 'get',
-    path: '/api/scrape',
-    tags,
+  // POST /api/v1/scraping/jobs/:id/run
+  const runJobRoute = createRoute({
+    method: 'post',
+    path: '/api/v1/scraping/jobs/{id}/run',
+    tags: ['Scraping Jobs'],
     request: {
-      query: z.object({
-        status: z.string().optional().openapi({
-          example: 'completed',
-          description: 'Filter jobs by status',
-        }),
+      params: z.object({
+        id: z.string(),
       }),
     },
     responses: {
       200: {
         content: {
           'application/json': {
-            schema: JobsListResponseSchema,
+            schema: z.object({
+              jobId: z.string(),
+              startTime: z.string(),
+              status: z.literal('running'),
+            }),
           },
+
         },
-        description: 'List of scraping jobs',
-      },
-      500: {
-        content: {
-          'application/json': {
-            schema: JobsListResponseSchema,
-          },
-        },
-        description: 'Server error',
+        description: 'Job started successfully',
       },
     },
   });
 
-  // Register routes (these don't handle the actual logic, just document the API)
-  app.openapi(createScrapeJobRoute, (c) => {
-    return c.json(
-      {
-        success: true,
-        message: 'Job created successfully',
-        jobId: 'example-id',
-        data: {
-          source: 'autoscout24',
-          query: 'bmw',
-          pageCount: 5
+  // GET /api/v1/scraping/stats
+  const getStatsRoute = createRoute({
+    method: 'get',
+    path: '/api/v1/scraping/stats',
+    tags: ['Statistics'],
+    responses: {
+      200: {
+        content: {
+          'application/json': {
+            schema: StatsSchema,
+          },
         },
-        timestamp: new Date().toISOString()
+        description: 'Global scraping statistics',
       },
-      200
-    );
+    },
   });
 
-  app.openapi(getScrapeJobRoute, (c) => {
-    return c.json(
-      {
-        success: true,
-        message: 'Job retrieved successfully',
-        jobId: c.req.param('id'),
-        state: 'pending',
-        progress: 0,
-        result: undefined,
-        failedReason: '',
-        timestamp: new Date().toISOString()
-      },
-      200
-    );
-  });
-  
-  app.openapi(getAllScrapeJobsRoute, (c) => {
-    return c.json(
-      {
-        success: true,
-        message: 'Jobs retrieved successfully',
-        jobs: [
-          {
-            id: 'example-id',
-            data: {
-              source: 'autoscout24',
-              query: 'bmw'
-            },
-            state: 'completed',
-            progress: 100,
-            timestamp: new Date().toISOString()
-          }
-        ],
-        timestamp: new Date().toISOString()
-      },
-      200
-    );
-  });
+  // Register routes
+  app.openapi(listJobsRoute, (c) => c.json({
+    items: [],
+    pageInfo: {
+      hasNextPage: false,
+      nextCursor: null,
+      count: 0,
+    },
+  }));
+
+  app.openapi(createJobRoute, (c) => c.json({
+    id: 'example-id',
+    name: 'Example Job',
+    status: JobStatusEnum.enum.idle,
+    target: 'https://example.com',
+    config: {},
+    nextScheduledRun: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }, 201));
+
+  app.openapi(getJobRoute, (c) => c.json({
+    id: c.req.param('id'),
+    name: 'Example Job',
+    status: JobStatusEnum.enum.idle,
+    target: 'https://example.com',
+    config: {},
+    nextScheduledRun: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    history: []
+  }));
+
+  app.openapi(runJobRoute, (c) => c.json({
+    jobId: c.req.param('id'),
+    startTime: new Date().toISOString(),
+    status: 'running' as const
+  }));
+
+  app.openapi(getStatsRoute, (c) => c.json({
+    totalJobs: 0,
+    activeJobs: 0,
+    completedToday: 0,
+    failedToday: 0,
+    totalItemsScraped: 0,
+  }));
 
   // Generate OpenAPI documentation
   app.doc('/doc', {
     openapi: '3.0.0',
     info: {
-      title: 'Web Scraping API Documentation',
+      title: 'Scraping Management API',
       version: '1.0.0',
-      description: 'API for managing web scraping tasks with Hono.js and BullMQ',
+      description: 'API for managing web scraping jobs with real-time monitoring',
     },
     servers: [
       {
@@ -217,3 +238,8 @@ export const createSwaggerRoute = () => {
 
   return app;
 };
+
+
+
+
+

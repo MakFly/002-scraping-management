@@ -1,152 +1,238 @@
-import { Queue, Job } from 'bullmq';
-import { ScrapeJob } from '../queues/scrapeQueue';
+import { PrismaClient, ScrapeJobHistory } from '@prisma/client';
+import { Queue } from 'bullmq';
+import { ScrapeJobRequest } from '../types/ScrapeJobTypes';
 import { logger } from '../config/logger';
-import { IScrapeJobService, ScrapeJobResult, JobsListResult } from '../types/ScrapeJob';
+import redisConnection from '@/config/redis';
 
-export class ScrapeJobService implements IScrapeJobService {
-  private queue: Queue<ScrapeJob>;
+export class ScrapeJobService {
+  private prisma: PrismaClient;
+  private queue: Queue;
 
-  constructor(queue: Queue<ScrapeJob>) {
-    this.queue = queue;
+  constructor() {
+    this.prisma = new PrismaClient();
+    this.queue = new Queue('scrape-queue', { connection: redisConnection });
   }
 
-  public async createJob(data: ScrapeJob): Promise<ScrapeJobResult> {
+  async createJob(data: ScrapeJobRequest) {
     try {
-      // Check if similar job exists
-      const activeJobs = await this.queue.getJobs(['active', 'waiting']);
-      const similarJob = activeJobs.find(job => 
-        job.data.source === data.source && 
-        job.data.query === data.query
-      );
-      
-      if (similarJob) {
-        logger.info(`Similar job ${similarJob.id} already exists for source: ${data.source}`);
-        return {
-          success: true,
-          message: 'A similar job is already being processed',
-          jobId: similarJob.id,
-          data,
-          timestamp: new Date().toISOString(),
-          statusCode: 202
-        };
-      }
-      
-      // Add slight random delay to avoid exactly simultaneous submissions
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
-      
-      // Generate custom job ID
-      const jobId = `${data.source}-${data.query || 'no-query'}-${Date.now()}`;
-      
-      const job = await this.queue.add('scrape', data, {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 1000
-        },
-        jobId // Set the custom job ID here
+      const job = await this.prisma.scrapeJob.create({
+        data: {
+          source: data.source,
+          query: data.source === 'autoscout24' ? 'default' : data.query || '',
+          pageCount: data.pageCount,
+          status: 'idle'
+        }
       });
 
-      logger.info(`Created scrape job ${job.id} for source: ${data.source}`);
+      // Add job to BullMQ queue
+      await this.queue.add('scrape-job', {
+        source: data.source,
+        query: data.query,
+        pageCount: data.pageCount,
+        jobId: job.id,
+        zip: data.zip,
+        zipr: data.zipr
+      });
+
+      // Update job status to queued
+      await this.prisma.scrapeJob.update({
+        where: { id: job.id },
+        data: { status: 'queued' }
+      });
 
       return {
         success: true,
-        message: 'Scrape job created successfully',
+        message: 'Job created and queued successfully',
         jobId: job.id,
-        data,
-        timestamp: new Date().toISOString(),
-        statusCode: 202
+        data: {
+          source: job.source,
+          query: job.query,
+          pageCount: job.pageCount
+        },
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      logger.error(`Error creating job: ${errorMessage}`);
-      
-      return {
-        success: false,
-        message: errorMessage,
-        timestamp: new Date().toISOString(),
-        statusCode: 500
-      };
+      logger.error('Error creating job:', error);
+      throw error;
     }
   }
 
-  public async getJob(jobId: string): Promise<ScrapeJobResult> {
-    try {
-      const job = await this.queue.getJob(jobId);
-
-      if (!job) {
-        return {
-          success: false,
-          message: 'Job not found',
-          jobId,
-          timestamp: new Date().toISOString(),
-          statusCode: 404
-        };
+  async getJob(jobId: string) {
+    const job = await this.prisma.scrapeJob.findUnique({
+      where: { id: parseInt(jobId) },
+      include: {
+        history: {
+          orderBy: {
+            startTime: 'desc'
+          },
+          take: 50
+        }
       }
+    });
 
-      const [state, progress] = await Promise.all([
-        job.getState(),
-        job.progress()
-      ]);
-
+    if (!job) {
       return {
-        success: true,
+        success: false,
+        message: 'Job not found',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Job retrieved successfully',
+      jobId: job.id,
+      source: job.source,
+      query: job.query,
+      pageCount: job.pageCount,
+      status: job.status,
+      history: job.history?.map((h: any) => ({
+        startTime: h.startTime,
+        endTime: h.endTime,
+        status: h.status,
+        itemsScraped: h.itemsScraped,
+        errors: h.errors,
+        logs: h.logs,
+        results: h.results
+      })),
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  async runJob(jobId: string) {
+    const job = await this.prisma.scrapeJob.findUnique({
+      where: { id: parseInt(jobId) }
+    });
+
+    if (!job) {
+      return {
+        success: false,
+        message: 'Job not found',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // Add job to queue
+    await this.queue.add('scrape', {
+      jobId: job.id,
+      source: job.source,
+      query: job.query,
+      pageCount: job.pageCount
+    });
+
+    // Create history entry
+    await this.prisma.scrapeJobHistory.create({
+      data: {
         jobId: job.id,
-        state,
-        progress,
-        data: job.data,
-        result: job.returnvalue,
-        failedReason: job.failedReason,
-        timestamp: new Date().toISOString(),
-        statusCode: 200
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      logger.error(`Error fetching job ${jobId}: ${errorMessage}`);
-      
-      return {
-        success: false,
-        message: errorMessage,
-        jobId,
-        timestamp: new Date().toISOString(),
-        statusCode: 500
-      };
-    }
+        status: 'running',
+        startTime: new Date(),
+        itemsScraped: 0,
+        errors: [],
+        logs: []
+      }
+    });
+
+    // Update job status
+    await this.prisma.scrapeJob.update({
+      where: { id: parseInt(jobId) },
+      data: { status: 'running' }
+    });
+
+    return {
+      success: true,
+      jobId: job.id,
+      startTime: new Date().toISOString(),
+      status: 'running' as const
+    };
   }
 
-  public async getAllJobs(): Promise<JobsListResult> {
-    try {
-      const jobs = await this.queue.getJobs(['waiting', 'active', 'completed', 'failed']);
-      
-      const jobsData = await Promise.all(
-        jobs.map(async (job) => ({
-          jobId: job.id,
-          state: await job.getState(),
-          progress: await job.progress(),
-          data: job.data,
-          result: job.returnvalue,
-          failedReason: job.failedReason,
-          timestamp: job.timestamp
-        }))
-      );
+  async getAllJobs(cursor?: string, limit: number = 10) {
+    const take = Math.min(limit, 100);
 
-      return {
-        success: true,
-        jobs: jobsData,
-        timestamp: new Date().toISOString(),
-        statusCode: 200
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      logger.error(`Error fetching all jobs: ${errorMessage}`);
-      
-      return {
-        success: false,
-        message: errorMessage,
-        timestamp: new Date().toISOString(),
-        statusCode: 500
-      };
-    }
+    const jobs = await this.prisma.scrapeJob.findMany({
+      take: take + 1,
+      ...(cursor ? {
+        cursor: {
+          id: parseInt(cursor)
+        },
+        skip: 1
+      } : {}),
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        history: {
+          orderBy: {
+            startTime: 'desc'
+          },
+          take: 1
+        }
+      }
+    });
+
+    const hasNextPage = jobs.length > take;
+    const items = hasNextPage ? jobs.slice(0, take) : jobs;
+    const nextCursor = hasNextPage ? items[items.length - 1].id.toString() : null;
+
+    return {
+      items: items.map(job => ({
+        id: job.id,
+        source: job.source,
+        query: job.query,
+        pageCount: job.pageCount,
+        status: job.status,
+        lastRun: job.history[0]?.startTime || null,
+        createdAt: job.createdAt.toISOString(),
+        updatedAt: job.updatedAt.toISOString()
+      })),
+      pageInfo: {
+        hasNextPage,
+        nextCursor,
+        count: items.length
+      }
+    };
   }
-}
 
-export default ScrapeJobService; 
+  async getStats() {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [
+      totalJobs,
+      activeJobs,
+      completedToday,
+      failedToday,
+      totalScraped
+    ] = await Promise.all([
+      this.prisma.scrapeJob.count(),
+      this.prisma.scrapeJob.count({
+        where: { status: 'running' }
+      }),
+      this.prisma.scrapeJobHistory.count({
+        where: {
+          status: 'completed',
+          startTime: { gte: startOfDay }
+        }
+      }),
+      this.prisma.scrapeJobHistory.count({
+        where: {
+          status: 'failed',
+          startTime: { gte: startOfDay }
+        }
+      }),
+      this.prisma.scrapeJobHistory.aggregate({
+        _sum: {
+          itemsScraped: true
+        }
+      })
+    ]);
+
+    return {
+      totalJobs,
+      activeJobs,
+      completedToday,
+      failedToday,
+      totalItemsScraped: totalScraped._sum.itemsScraped || 0
+    };
+  }
+} 

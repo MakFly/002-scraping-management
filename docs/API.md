@@ -1,179 +1,377 @@
-# Documentation API
+# Documentation de l'API
 
-*[English version below](#api-documentation)*
+## Table des Matières
 
-## Endpoints API
+1. [Introduction](#introduction)
+2. [Authentification](#authentification)
+3. [Endpoints](#endpoints)
+4. [WebSocket](#websocket)
+5. [Modèles de Données](#modèles-de-données)
+6. [Codes d'Erreur](#codes-derreur)
+7. [Pagination](#pagination)
+8. [Rate Limiting](#rate-limiting)
 
-### `/api/scrape` (POST)
+## Introduction
 
-Endpoint principal pour soumettre une tâche de scraping.
+L'API est construite avec Hono.js et suit les principes REST. Elle utilise JSON pour les requêtes et les réponses.
 
-#### Paramètres de la requête
+**Base URL**: `http://localhost:3000/api/v1`
 
-| Paramètre   | Type     | Description                                       | Requis  |
-|-------------|----------|---------------------------------------------------|---------|
-| source      | string   | La source à scraper                               | Oui     |
-| query       | string   | La requête de recherche                           | Non     |
-| pageCount   | number   | Le nombre de pages à scraper (défaut: 1)          | Non     |
+## Authentification
 
-#### Exemple de requête
+L'API utilise JWT (JSON Web Tokens) pour l'authentification.
 
-```json
-{
-  "source": "example",
-  "query": "test",
-  "pageCount": 2
+```typescript
+// Header requis pour les requêtes authentifiées
+Authorization: Bearer <token>
+```
+
+## Endpoints
+
+### Gestion des Jobs
+
+#### 1. Liste des Jobs
+
+```typescript
+GET /scraping/jobs
+
+// Query Parameters
+interface JobsQuery {
+  cursor?: string;        // Cursor pour la pagination
+  limit?: number;         // Nombre d'items par page (default: 10)
+  status?: JobStatus;     // Filtre par statut
+  source?: string;        // Filtre par source
+}
+
+// Response 200
+interface JobsResponse {
+  items: Array<{
+    id: string;
+    source: string;
+    query: string;
+    status: JobStatus;
+    createdAt: string;
+    updatedAt: string;
+    lastRun?: string;
+    nextRun?: string;
+    stats: {
+      totalRuns: number;
+      successfulRuns: number;
+      failedRuns: number;
+      itemsScraped: number;
+    };
+  }>;
+  pageInfo: {
+    hasNextPage: boolean;
+    nextCursor: string | null;
+    count: number;
+  };
 }
 ```
 
-#### Réponse
+#### 2. Création d'un Job
 
-```json
-{
-  "success": true,
-  "message": "Job ajouté à la file d'attente",
-  "jobId": "example-test-1234567890",
-  "timestamp": "2023-03-18T12:34:56.789Z"
+```typescript
+POST /scraping/jobs
+
+// Request Body
+interface CreateJobRequest {
+  source: string;           // Site cible
+  query: string;           // Requête de recherche
+  pageCount?: number;      // Nombre de pages (1-10)
+  schedule?: string;       // Expression cron pour planification
+  config?: {
+    userAgent?: string;
+    timeout?: number;
+    proxy?: string;
+    headers?: Record<string, string>;
+  };
+}
+
+// Response 201
+interface CreateJobResponse {
+  id: string;
+  source: string;
+  query: string;
+  status: 'created';
+  createdAt: string;
 }
 ```
 
-#### Codes de statut
+#### 3. Détails d'un Job
 
-| Code  | Description                                                    |
-|-------|----------------------------------------------------------------|
-| 200   | Succès - La tâche a été soumise                                |
-| 400   | Erreur - Paramètres invalides                                  |
-| 409   | Conflit - Une tâche similaire est déjà en cours d'exécution    |
-| 429   | Trop de requêtes - Limite de taux dépassée                     |
-| 500   | Erreur serveur interne                                         |
+```typescript
+GET /scraping/jobs/:id
 
-### `/` (GET)
-
-Retourne un message de bienvenue.
-
-#### Réponse
-
-```
-Bienvenue sur l'API de scraping !
-```
-
-### `/health` (GET)
-
-Vérifie l'état de l'API.
-
-#### Réponse
-
-```json
-{
-  "status": "ok"
+// Response 200
+interface JobDetailResponse {
+  id: string;
+  source: string;
+  query: string;
+  status: JobStatus;
+  createdAt: string;
+  updatedAt: string;
+  lastRun?: string;
+  nextRun?: string;
+  config: ScrapingConfig;
+  history: Array<{
+    id: string;
+    startTime: string;
+    endTime: string;
+    status: 'success' | 'failed';
+    itemsScraped: number;
+    errors?: string[];
+    duration: number;
+  }>;
+  stats: {
+    totalRuns: number;
+    successfulRuns: number;
+    failedRuns: number;
+    itemsScraped: number;
+    averageDuration: number;
+  };
 }
 ```
 
-### `/swagger` (GET)
+#### 4. Exécution d'un Job
 
-Interface Swagger pour explorer l'API.
+```typescript
+POST /scraping/jobs/:id/run
 
-### `/ui` (GET)
-
-Interface Bull Board pour surveiller les files d'attente et l'état des tâches.
-
-## Gestion du taux de requêtes
-
-L'API implémente un système de limitation du taux de requêtes pour éviter les abus :
-
-- Maximum de 5 requêtes par période de 10 secondes par adresse IP
-- Les entrées expirées sont nettoyées toutes les minutes
-
-## Vérification des tâches en double
-
-L'API vérifie si une tâche similaire est déjà en cours d'exécution avant d'en ajouter une nouvelle. Une tâche est considérée comme similaire si elle a la même source et la même requête.
-
----
-
-# API Documentation
-
-## API Endpoints
-
-### `/api/scrape` (POST)
-
-Main endpoint for submitting a scraping task.
-
-#### Request Parameters
-
-| Parameter   | Type     | Description                                       | Required |
-|-------------|----------|---------------------------------------------------|----------|
-| source      | string   | The source to scrape                               | Yes      |
-| query       | string   | The search query                                   | No       |
-| pageCount   | number   | The number of pages to scrape (default: 1)         | No       |
-
-#### Request Example
-
-```json
-{
-  "source": "example",
-  "query": "test",
-  "pageCount": 2
+// Response 202
+interface RunJobResponse {
+  id: string;
+  executionId: string;
+  status: 'running';
+  startTime: string;
 }
 ```
 
-#### Response
+#### 5. Suppression d'un Job
 
-```json
-{
-  "success": true,
-  "message": "Job added to queue",
-  "jobId": "example-test-1234567890",
-  "timestamp": "2023-03-18T12:34:56.789Z"
+```typescript
+DELETE /scraping/jobs/:id
+
+// Response 204
+```
+
+### Monitoring
+
+#### 1. Statistiques Globales
+
+```typescript
+GET /scraping/stats
+
+// Response 200
+interface StatsResponse {
+  jobs: {
+    total: number;
+    active: number;
+    completed: number;
+    failed: number;
+  };
+  scraping: {
+    totalItemsScraped: number;
+    successRate: number;
+    averageDuration: number;
+  };
+  system: {
+    uptime: number;
+    memory: {
+      used: number;
+      total: number;
+    };
+    cpu: number;
+  };
 }
 ```
 
-#### Status Codes
+#### 2. État de Santé
 
-| Code  | Description                                               |
-|-------|-----------------------------------------------------------|
-| 200   | Success - The task has been submitted                     |
-| 400   | Error - Invalid parameters                                |
-| 409   | Conflict - A similar task is already being processed      |
-| 429   | Too many requests - Rate limit exceeded                   |
-| 500   | Internal server error                                     |
+```typescript
+GET /scraping/health
 
-### `/` (GET)
+// Response 200
+interface HealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  components: {
+    api: ComponentHealth;
+    database: ComponentHealth;
+    redis: ComponentHealth;
+    workers: ComponentHealth;
+  };
+  timestamp: string;
+}
 
-Returns a welcome message.
-
-#### Response
-
-```
-Welcome to the scraping API!
-```
-
-### `/health` (GET)
-
-Checks the API status.
-
-#### Response
-
-```json
-{
-  "status": "ok"
+interface ComponentHealth {
+  status: 'up' | 'down';
+  latency: number;
+  message?: string;
 }
 ```
 
-### `/swagger` (GET)
+### Résultats de Scraping
 
-Swagger UI for exploring the API.
+#### 1. Liste des Résultats
 
-### `/ui` (GET)
+```typescript
+GET /scraping/results
 
-Bull Board UI for monitoring queues and task status.
+// Query Parameters
+interface ResultsQuery {
+  jobId?: string;
+  source?: string;
+  cursor?: string;
+  limit?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+// Response 200
+interface ResultsResponse {
+  items: Array<{
+    id: string;
+    jobId: string;
+    source: string;
+    data: ScrapedItem[];
+    timestamp: string;
+    stats: {
+      itemCount: number;
+      duration: number;
+      pagesScraped: number;
+    };
+  }>;
+  pageInfo: {
+    hasNextPage: boolean;
+    nextCursor: string | null;
+    count: number;
+  };
+}
+```
+
+## WebSocket
+
+### Connexion
+
+```typescript
+const ws = new WebSocket('ws://localhost:3000/api/v1/scraping/live');
+```
+
+### Événements
+
+```typescript
+interface WebSocketEvent {
+  type: 'job_started' | 'job_completed' | 'job_failed' | 'item_scraped';
+  jobId: string;
+  timestamp: string;
+  data: any;
+}
+
+// Exemple d'événements
+{
+  type: 'job_started',
+  jobId: '123',
+  timestamp: '2024-03-21T14:30:00Z',
+  data: {
+    source: 'ebay.com',
+    query: 'vintage cards'
+  }
+}
+
+{
+  type: 'item_scraped',
+  jobId: '123',
+  timestamp: '2024-03-21T14:30:05Z',
+  data: {
+    title: 'Vintage Pokemon Card',
+    price: '29.99',
+    url: 'https://...'
+  }
+}
+```
+
+## Modèles de Données
+
+### Job Status
+
+```typescript
+type JobStatus = 
+  | 'created'    // Job créé mais jamais exécuté
+  | 'scheduled'  // Job planifié
+  | 'running'    // En cours d'exécution
+  | 'completed'  // Terminé avec succès
+  | 'failed'     // Échec de l'exécution
+  | 'cancelled'  // Annulé par l'utilisateur
+```
+
+### Scraped Item
+
+```typescript
+interface ScrapedItem {
+  title: string;
+  price: number | string;
+  url: string;
+  image?: string;
+  description?: string;
+  metadata: Record<string, any>;
+}
+```
+
+## Codes d'Erreur
+
+| Code | Description |
+|------|-------------|
+| 400  | Requête invalide |
+| 401  | Non authentifié |
+| 403  | Non autorisé |
+| 404  | Ressource non trouvée |
+| 429  | Trop de requêtes |
+| 500  | Erreur serveur |
+
+### Format des Erreurs
+
+```typescript
+interface ErrorResponse {
+  error: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+  timestamp: string;
+  requestId: string;
+}
+```
+
+## Pagination
+
+La pagination utilise un système de curseur pour de meilleures performances.
+
+```typescript
+interface PaginationQuery {
+  cursor?: string;  // Curseur pour la page suivante
+  limit?: number;   // Nombre d'items par page (max: 100)
+}
+
+interface PageInfo {
+  hasNextPage: boolean;
+  nextCursor: string | null;
+  count: number;
+}
+```
 
 ## Rate Limiting
 
-The API implements a rate limiting system to prevent abuse:
+L'API implémente des limites de taux par utilisateur et par IP.
 
-- Maximum of 5 requests per 10-second period per IP address
-- Expired entries are cleaned up every minute
+```typescript
+// Headers de réponse
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 99
+X-RateLimit-Reset: 1616501234
+```
 
-## Duplicate Task Checking
+### Limites par défaut
 
-The API checks if a similar task is already being processed before adding a new one. A task is considered similar if it has the same source and query. 
+- 100 requêtes par minute par IP
+- 1000 requêtes par heure par utilisateur authentifié
+- 5 jobs simultanés par utilisateur

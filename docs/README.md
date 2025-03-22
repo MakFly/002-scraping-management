@@ -21,6 +21,7 @@ Ce projet est une API de scraping basée sur Hono.js et BullMQ. Il permet de gé
 ### Prérequis
 
 - Node.js v20 ou supérieur
+- PostgreSQL 15 ou supérieur
 - Redis (pour BullMQ)
 - pnpm v10.6.2 (gestionnaire de paquets)
 
@@ -43,6 +44,9 @@ Le projet utilise les variables d'environnement pour sa configuration. Vous pouv
 # Configuration du serveur
 PORT=3000
 
+# Configuration PostgreSQL
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/scraping?schema=public
+
 # Configuration Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -50,6 +54,17 @@ REDIS_PASSWORD=
 
 # Configuration des logs
 LOG_LEVEL=info
+
+# Configuration Adminer
+Pour accéder à l'interface d'administration de la base de données PostgreSQL, Adminer est disponible sur :
+```
+http://localhost:8080
+```
+Utilisez les identifiants suivants :
+- Serveur : postgres
+- Utilisateur : postgres
+- Mot de passe : postgres
+- Base de données : scraping
 ```
 
 ## Architecture
@@ -58,6 +73,7 @@ Le projet suit une architecture modulaire avec les composants suivants :
 
 - **Server**: Configuration du serveur Hono.js et des middlewares
 - **Routes**: Définition des endpoints API
+- **Database**: Accès à la base de données PostgreSQL via Prisma
 - **Queues**: Gestion des files d'attente pour les tâches de scraping
 - **Workers**: Exécution des tâches de scraping
 - **Config**: Configuration du système
@@ -73,7 +89,10 @@ src/
   ├── routes/       # Routes API
   ├── server/       # Configuration du serveur
   ├── workers/      # Workers BullMQ
+  ├── db/           # Modèles et utilitaires de base de données
   └── index.ts      # Point d'entrée de l'application
+prisma/
+  └── schema.prisma # Schéma Prisma pour PostgreSQL
 ```
 
 ## API Endpoints
@@ -173,6 +192,7 @@ This project is a scraping API based on Hono.js and BullMQ. It allows managing a
 ### Prerequisites
 
 - Node.js v20 or higher
+- PostgreSQL 15 or higher
 - Redis (for BullMQ)
 - pnpm v10.6.2 (package manager)
 
@@ -195,6 +215,9 @@ The project uses environment variables for its configuration. You can define the
 # Server configuration
 PORT=3000
 
+# PostgreSQL configuration
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/scraping?schema=public
+
 # Redis configuration
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -202,6 +225,17 @@ REDIS_PASSWORD=
 
 # Logs configuration
 LOG_LEVEL=info
+
+# Adminer Configuration
+To access the PostgreSQL database administration interface, Adminer is available at:
+```
+http://localhost:8080
+```
+Use the following credentials:
+- Server: postgres
+- Username: postgres
+- Password: postgres
+- Database: scraping
 ```
 
 ## Architecture
@@ -210,6 +244,7 @@ The project follows a modular architecture with the following components:
 
 - **Server**: Hono.js server and middleware configuration
 - **Routes**: Definition of API endpoints
+- **Database**: PostgreSQL database access via Prisma
 - **Queues**: Management of queues for scraping tasks
 - **Workers**: Execution of scraping tasks
 - **Config**: System configuration
@@ -225,7 +260,10 @@ src/
   ├── routes/       # API routes
   ├── server/       # Server configuration
   ├── workers/      # BullMQ workers
+  ├── db/           # Database models and utilities
   └── index.ts      # Application entry point
+prisma/
+  └── schema.prisma # Prisma schema for PostgreSQL
 ```
 
 ## API Endpoints

@@ -1,75 +1,105 @@
 import { z } from 'zod';
-import { ScrapeJobSchema } from '../queues/scrapeQueue';
 
-// Job Status Enum
-export const JobStatusEnum = z.enum(['pending', 'active', 'completed', 'failed']).openapi({
-  example: 'pending'
-});
+// Enums
+export const JobStatusEnum = z.enum([
+  'idle',
+  'running',
+  'completed',
+  'failed',
+  'cancelled'
+]);
+
 export type JobStatus = z.infer<typeof JobStatusEnum>;
 
-// Reuse the existing ScrapeJobSchema from the queue
-export const ScrapeJobRequestSchema = ScrapeJobSchema.openapi({
-  example: {
-    source: 'autoscout24',
-    query: 'bmw',
-    pageCount: 5,
-    zip: '10115',
-    zipr: '50'
-  }
+// Base schemas
+export const ScrapeJobRequestSchema = z.object({
+  source: z.string(),
+  query: z.string().optional(),
+  pageCount: z.number().int().min(1).max(10).default(1),
+  zip: z.string().optional(),
+  zipr: z.string().optional()
 });
-export type ScrapeJobRequest = z.infer<typeof ScrapeJobRequestSchema>;
 
-// Response schema based on actual controller responses
 export const ScrapeJobResponseSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  jobId: z.string().optional(),
-  data: ScrapeJobRequestSchema.optional(),
-  state: z.string().optional(),
-  progress: z.any().optional(),
-  result: z.any().optional(),
-  failedReason: z.string().optional(),
-  timestamp: z.string(),
-  statusCode: z.number().optional(),
-}).openapi({
-  example: {
-    success: true,
-    message: 'Job created successfully',
-    jobId: '123e4567-e89b-12d3-a456-426614174000',
-    data: {
-      source: 'autoscout24',
-      query: 'bmw',
-      pageCount: 5
-    },
-    state: 'active',
-    timestamp: '2023-01-01T00:00:00.000Z'
-  }
+  id: z.string(),
+  source: z.string(),
+  query: z.string(),
+  status: JobStatusEnum,
+  pageCount: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
-export type ScrapeJobResponse = z.infer<typeof ScrapeJobResponseSchema>;
 
-// Jobs List Response Schema (for GET /scrape)
-export const JobsListResponseSchema = z.object({
-  success: z.boolean(),
-  jobs: z.array(z.any()).optional(),
-  message: z.string().optional(),
+export const JobHistoryEntrySchema = z.object({
+  startTime: z.string(),
+  endTime: z.string().optional(),
+  status: z.string(),
+  itemsScraped: z.number(),
+  errors: z.array(z.string()).optional(),
+});
+
+export const JobDetailsSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: JobStatusEnum,
+  target: z.string(),
+  config: z.record(z.any()),
+  schedule: z.string().optional(),
+  nextScheduledRun: z.string().optional(),
+  history: z.array(JobHistoryEntrySchema),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+
+// Response types
+export type ScrapeJobRequest = z.infer<typeof ScrapeJobRequestSchema>;
+export type ScrapeJobResponse = z.infer<typeof ScrapeJobResponseSchema>;
+export type JobHistoryEntry = z.infer<typeof JobHistoryEntrySchema>;
+export type JobDetails = z.infer<typeof JobDetailsSchema>;
+
+// Pagination
+export const PaginationSchema = z.object({
+  cursor: z.string().optional(),
+  limit: z.number().int().min(1).max(100).default(10)
+});
+
+export const PageInfoSchema = z.object({
+  hasNextPage: z.boolean(),
+  nextCursor: z.string().nullable(),
+  count: z.number()
+});
+
+export type Pagination = z.infer<typeof PaginationSchema>;
+export type PageInfo = z.infer<typeof PageInfoSchema>;
+
+// Stats
+export const StatsSchema = z.object({
+  totalJobs: z.number(),
+  activeJobs: z.number(),
+  completedToday: z.number(),
+  failedToday: z.number(),
+  totalItemsScraped: z.number()
+});
+
+export type Stats = z.infer<typeof StatsSchema>;
+
+// WebSocket Events
+export const WebSocketEventSchema = z.object({
+  type: z.enum(['job_started', 'job_completed', 'job_failed', 'item_scraped']),
+  jobId: z.string(),
   timestamp: z.string(),
-  statusCode: z.number().optional()
-}).openapi({
-  example: {
-    success: true,
-    jobs: [
-      {
-        id: '123e4567-e89b-12d3-a456-426614174000',
-        data: {
-          source: 'autoscout24',
-          query: 'bmw'
-        },
-        state: 'completed',
-        progress: 100,
-        timestamp: '2023-01-01T00:00:00.000Z'
-      }
-    ],
-    message: 'Jobs retrieved successfully',
-    timestamp: '2023-01-01T00:00:00.000Z'
-  }
-}); 
+  data: z.record(z.any())
+});
+
+export type WebSocketEvent = z.infer<typeof WebSocketEventSchema>;
+
+export const JobsListResponseSchema = z.object({
+  items: z.array(ScrapeJobResponseSchema),
+  pageInfo: z.object({
+    hasNextPage: z.boolean(),
+    nextCursor: z.string().nullable(),
+    count: z.number(),
+  }),
+});
+
+export type JobsListResponse = z.infer<typeof JobsListResponseSchema>; 

@@ -1,53 +1,111 @@
-# Index de la Documentation
+# Documentation du Système de Scraping
 
-*[English version below](#documentation-index)*
+## Introduction
 
-## Documentation du Projet de Scraping
+Bienvenue dans la documentation du système de scraping. Ce projet est une solution complète de scraping web basée sur Hono.js et BullMQ, conçue pour être robuste, scalable et facile à maintenir.
 
-Bienvenue dans la documentation du projet de scraping. Cette documentation fournit des informations détaillées sur l'installation, la configuration, l'utilisation et le déploiement du projet.
+## Structure de la Documentation
 
-### Contenu
+### 1. Guide de Démarrage
+- [README.md](README.md) - Vue d'ensemble et guide d'installation
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Architecture technique détaillée
+- [API.md](API.md) - Documentation complète de l'API
 
-- [README](README.md) - Vue d'ensemble du projet et informations générales
-- [Architecture](ARCHITECTURE.md) - Détails sur l'architecture et les composants du projet
-- [API](API.md) - Documentation des endpoints API et des formats de requêtes/réponses
-- [Déploiement](DEPLOYMENT.md) - Guide de déploiement pour différents environnements
-- [SCRAPING-SYSTEM](SCRAPING-SYSTEM.md) - Architecture et fonctionnement du système de scraping
+### 2. Composants Principaux
+- [SCRAPING-SYSTEM.md](SCRAPING-SYSTEM.md) - Système de scraping et stratégies
+- [REALTIME_MONITORING.md](REALTIME_MONITORING.md) - Monitoring en temps réel
+- [socket-io-integration.md](socket-io-integration.md) - Intégration Socket.IO
 
-### Démarrage rapide
+### 3. Guides Opérationnels
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Guide de déploiement
+- [TESTING.md](TESTING.md) - Stratégies de test
+- [SWAGGER.md](SWAGGER.md) - Documentation Swagger
 
-Pour commencer rapidement avec le projet, suivez ces étapes :
+## Démarrage Rapide
 
-1. Clonez le dépôt
-2. Installez les dépendances avec `pnpm install`
-3. Configurez les variables d'environnement dans un fichier `.env`
-4. Démarrez le serveur en mode développement avec `pnpm dev`
+1. **Installation**
+   ```bash
+   git clone <repository-url>
+   cd <repository-directory>
+   pnpm install
+   ```
 
-Pour plus de détails, consultez la [documentation complète](README.md).
+2. **Configuration**
+   - Copier `.env.example` vers `.env`
+   - Configurer les variables d'environnement
+
+3. **Lancement**
+   ```bash
+   pnpm dev     # Développement
+   pnpm start   # Production
+   ```
+
+## Points Clés
+
+- **Architecture Modulaire** : Système conçu en composants indépendants
+- **Multi-Stratégies** : Support de Cheerio et Puppeteer
+- **Monitoring Temps Réel** : Interface de suivi en direct
+- **Scalabilité** : Support du clustering et de la distribution
+
+## Ressources Additionnelles
+
+- [Wiki du Projet](https://github.com/votre-repo/wiki)
+- [Changelog](CHANGELOG.md)
+- [Guide de Contribution](CONTRIBUTING.md)
 
 ---
 
-# Documentation Index
+# Scraping System Documentation
 
-## Web Scraping Project Documentation
+## Introduction
 
-Welcome to the web scraping project documentation. This documentation provides detailed information about the installation, configuration, usage, and deployment of the project.
+Welcome to the scraping system documentation. This project is a comprehensive web scraping solution based on Hono.js and BullMQ, designed to be robust, scalable, and easy to maintain.
 
-### Contents
+## Documentation Structure
 
-- [README](README.md) - Project overview and general information
-- [Architecture](ARCHITECTURE.md) - Details about the project's architecture and components
-- [API](API.md) - Documentation of API endpoints and request/response formats
-- [Deployment](DEPLOYMENT.md) - Deployment guide for different environments
-- [SCRAPING-SYSTEM](SCRAPING-SYSTEM.md) - Architecture and functionality of the scraping system
+### 1. Getting Started
+- [README.md](README.md) - Overview and installation guide
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed technical architecture
+- [API.md](API.md) - Complete API documentation
 
-### Quick Start
+### 2. Core Components
+- [SCRAPING-SYSTEM.md](SCRAPING-SYSTEM.md) - Scraping system and strategies
+- [REALTIME_MONITORING.md](REALTIME_MONITORING.md) - Real-time monitoring
+- [socket-io-integration.md](socket-io-integration.md) - Socket.IO integration
 
-To quickly get started with the project, follow these steps:
+### 3. Operational Guides
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment guide
+- [TESTING.md](TESTING.md) - Testing strategies
+- [SWAGGER.md](SWAGGER.md) - Swagger documentation
 
-1. Clone the repository
-2. Install dependencies with `pnpm install`
-3. Configure environment variables in a `.env` file
-4. Start the development server with `pnpm dev`
+## Quick Start
 
-For more details, see the [full documentation](README.md). 
+1. **Installation**
+   ```bash
+   git clone <repository-url>
+   cd <repository-directory>
+   pnpm install
+   ```
+
+2. **Configuration**
+   - Copy `.env.example` to `.env`
+   - Configure environment variables
+
+3. **Launch**
+   ```bash
+   pnpm dev     # Development
+   pnpm start   # Production
+   ```
+
+## Key Features
+
+- **Modular Architecture**: System designed in independent components
+- **Multi-Strategy**: Support for Cheerio and Puppeteer
+- **Real-time Monitoring**: Live tracking interface
+- **Scalability**: Support for clustering and distribution
+
+## Additional Resources
+
+- [Project Wiki](https://github.com/your-repo/wiki)
+- [Changelog](CHANGELOG.md)
+- [Contributing Guide](CONTRIBUTING.md) 

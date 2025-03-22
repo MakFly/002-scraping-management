@@ -1,0 +1,42 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model ScrapeJob {
+  id              Int               @id @default(autoincrement())
+  source          String            // The target website (e.g., "ebay", "amazon")
+  query           String            // Search query to execute
+  pageCount       Int               @default(1)  // Number of pages to scrape (1-10)
+  status          String            @default("idle") // idle, running, completed, failed, cancelled
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  history         ScrapeJobHistory[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ScrapeJobHistory {
+  id           Int        @id @default(autoincrement())
+  jobId        Int
+  status       String     // running, completed, failed
+  startTime    DateTime   @default(now())
+  endTime      DateTime?
+  itemsScraped Int        @default(0)
+  errors       String[]
+  logs         String[]   // Store log entries for real-time monitoring
+  results      Json?      // Store scraping results as JSON
+  job          ScrapeJob  @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@index([startTime])
+  @@index([status])
+}

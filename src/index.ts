@@ -1,26 +1,49 @@
-import { createApp } from './server/app';
-import { createHttpServer } from './server/http';
-import { createScrapeWorker } from './workers/scrapeWorker';
-import { logger } from './config/logger';
-import { scraperService } from './services/ScraperService';
+import { createApp } from "./server/app";
+import { createScrapeWorker } from "./workers/scrapeWorker";
+import { logger } from "./config/logger";
+import { scraperService } from "./services/ScraperService";
+import { configureSocketIO } from "./config/socketio";
+import { cors } from "hono/cors";
+import { createSwaggerRoute } from "./routes/swaggerRoute";
+import scrapeRoutes from "./routes/scrapeRoutes";
+import { WebSocketService } from './services/WebSocketService';
+import { serve } from '@hono/node-server'
 
-const port = process.env.PORT || 3000;
+const port = Number(process.env.PORT) || 3000;
 
 // Create application and get components
 const { app, scrapeQueue, basePath } = createApp();
 
-// Create HTTP server
-const server = createHttpServer(app);
+// CORS middleware
+app.use('*', cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
 
-// Start the scrape worker with the advanced scraping system
+// Routes
+app.route('/', createSwaggerRoute());
+app.route('/', scrapeRoutes);
+
+// Get health
+app.get('/health', (c) => c.json({ status: 'ok' }));
+
+// Create HTTP server with Hono
+const server = serve({
+  fetch: app.fetch,
+  port
+});
+
+// Initialize services
+export const wsService = new WebSocketService(server);
 const worker = createScrapeWorker();
+const io = configureSocketIO(server);
 
 // Handle graceful shutdown
 const shutdown = async () => {
     logger.info('Shutting down gracefully...');
     await worker.close();
     await scrapeQueue.close();
-    await scraperService.cleanup(); // Nettoyer les ressources du scraper (fermer les navigateurs Puppeteer)
+    await scraperService.cleanup();
     
     server.close(() => {
         logger.info('Server closed');
@@ -31,8 +54,14 @@ const shutdown = async () => {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-// Start the server
-server.listen(port, () => {
-    logger.info(`Server is running on port ${port}`);
-    logger.info(`Bull Board is available at http://localhost:${port}${basePath}`);
-});
+// Single startup message
+// logger.info(`
+// 🚀 Scraping API démarrée avec succès
+// -------------------------------------------
+// 📚 Documentation    : http://localhost:${port}/docs
+// 📊 Dashboard       : http://localhost:${port}${basePath}
+// 🔌 WebSocket       : ws://localhost:${port}
+// -------------------------------------------`);
+
+export { app, io };
+
