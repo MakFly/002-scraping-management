@@ -1,5 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { ScrapeJob } from '../queues/scrapeQueue';
+import { ScrapeJob } from '../queues/scrape.queue';
 import { scraperService } from '../services/ScraperService';
 import { logger } from '../config/logger';
 import { redisConnection } from '../config/redis';

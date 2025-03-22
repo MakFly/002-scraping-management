@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { ScrapeController } from '../controllers/ScrapeController';
+import { ScrapeController } from '../controllers/scrape.controller';
 
 // Validation schemas
 const paginationSchema = z.object({

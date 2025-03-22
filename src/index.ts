@@ -4,8 +4,8 @@ import { logger } from "./config/logger";
 import { scraperService } from "./services/ScraperService";
 import { configureSocketIO } from "./config/socketio";
 import { cors } from "hono/cors";
-import { createSwaggerRoute } from "./routes/swaggerRoute";
-import scrapeRoutes from "./routes/scrapeRoutes";
+import { createSwaggerRoute } from "./routes/swagger.route";
+import scrapeRoutes from "./routes/scrape.routes";
 import { WebSocketService } from './services/WebSocketService';
 import { serve } from '@hono/node-server'
 

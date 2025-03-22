@@ -1,4 +1,4 @@
-import { ScrapeJob } from '../queues/scrapeQueue';
+import { ScrapeJob } from '../queues/scrape.queue';
 import { ScrapeStrategy, ScrapedData, ScraperType } from '../types/Scraper';
 import { logger } from '../config/logger';
 import { domainRegistry } from './scrapers/DomainRegistry';

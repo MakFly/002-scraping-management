@@ -1,4 +1,4 @@
-import { ScrapeJob } from '../queues/scrapeQueue';
+import { ScrapeJob } from '../queues/scrape.queue';
 
 export interface ScrapeJobResult {
   success: boolean;

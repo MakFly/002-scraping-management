@@ -1,4 +1,4 @@
-import { ScrapeJob as BullScrapeJob } from '../queues/scrapeQueue';
+import { ScrapeJob as BullScrapeJob } from '../queues/scrape.queue';
 
 export enum ScraperType {
   CHEERIO = 'cheerio',

@@ -181,7 +181,10 @@ export const createSwaggerRoute = () => {
   }));
 
   app.openapi(createJobRoute, (c) => c.json({
+    query: '',
     id: 'example-id',
+    source: 'example-source',
+    pageCount: 0,
     name: 'Example Job',
     status: JobStatusEnum.enum.idle,
     target: 'https://example.com',
@@ -192,7 +195,10 @@ export const createSwaggerRoute = () => {
   }, 201));
 
   app.openapi(getJobRoute, (c) => c.json({
+    query: '',
     id: c.req.param('id'),
+    source: 'example-source',
+    pageCount: 0,
     name: 'Example Job',
     status: JobStatusEnum.enum.idle,
     target: 'https://example.com',
