@@ -57,6 +57,7 @@ export type ServerToClientEvents = {
   'job_failed': (event: JobStatusEvent) => void;
   'job_running': (event: JobStatusEvent) => void;
   'job_started': (event: JobStatusEvent) => void;
+  'job_created': (event: JobStatusEvent) => void;
   'job_log': (event: LogEvent) => void;
   'job:progress': (event: ProgressEvent) => void;
   'job:error': (event: ErrorEvent) => void;
