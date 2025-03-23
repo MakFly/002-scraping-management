@@ -168,7 +168,8 @@ export class ScrapeController {
 
   public async getStats(c: Context): Promise<Response> {
     try {
-      const stats = await this.jobService.getStats();
+      const { timeRange = '7d' } = c.req.query();
+      const stats = await this.jobService.getStats(timeRange as string);
       return c.json(stats);
     } catch (error) {
       return c.json({
@@ -257,6 +258,24 @@ export class ScrapeController {
       return c.json({ 
         success: false, 
         message: 'Failed to establish SSE connection' 
+      }, 500);
+    }
+  }
+
+  public async getAllJobsHistory(c: Context): Promise<Response> {
+    try {
+      // Utiliser une méthode spécifique pour récupérer tous les jobs
+      const result = await this.jobService.getAllJobsHistory();
+      return c.json({
+        items: result,
+        success: true
+      });
+    } catch (error) {
+      logger.error('Error retrieving jobs history:', error);
+      return c.json({
+        success: false,
+        message: 'Error retrieving jobs history',
+        timestamp: new Date().toISOString()
       }, 500);
     }
   }

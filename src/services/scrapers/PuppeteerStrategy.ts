@@ -11,6 +11,7 @@ import { getExtractor } from './extractors';
 export class PuppeteerStrategy implements ScrapeStrategy {
   private options: ScraperOptions;
   private browser: Browser | null = null;
+  public onPageScraped: ((pageNum: number, totalPages: number) => void) | null = null;
 
   constructor(options: ScraperOptions = {}) {
     this.options = {
@@ -102,6 +103,11 @@ export class PuppeteerStrategy implements ScrapeStrategy {
           // Utiliser l'extracteur pour obtenir les éléments
           const items = await extractor.extractItems(page, domainConfig.selectors);
           allItems = [...allItems, ...items];
+          
+          // Notifier de la progression page par page si le callback existe
+          if (this.onPageScraped && job.source === 'autoscout24') {
+            this.onPageScraped(currentPage, pageCount);
+          }
           
           // Si c'est la dernière page, on sort de la boucle
           if (currentPage === pageCount) {

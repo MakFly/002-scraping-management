@@ -30,7 +30,7 @@ app.use('*', cors({
 app.route('/', createSwaggerRoute());
 
 // Import routes after WebSocket initialization
-import scrapeRoutes from "./routes/scrape.routes";
+import scrapeRoutes from "./routes/scrape.route";
 app.route('/', scrapeRoutes);
 
 // Get health

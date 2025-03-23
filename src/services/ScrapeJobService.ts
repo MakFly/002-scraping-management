@@ -194,47 +194,144 @@ export class ScrapeJobService {
     };
   }
 
-  async getStats() {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  async getStats(timeRange: string = '7d') {
+    try {
+      // Déterminer la plage de dates en fonction du timeRange
+      const now = new Date();
+      let startDate = new Date();
+      
+      switch (timeRange) {
+        case '24h':
+          startDate.setHours(startDate.getHours() - 24);
+          break;
+        case '7d':
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+        case '30d':
+          startDate.setDate(startDate.getDate() - 30);
+          break;
+        case 'all':
+          startDate = new Date(0); // Début de l'époque Unix
+          break;
+        default:
+          startDate.setDate(startDate.getDate() - 7); // Par défaut 7 jours
+      }
 
-    const [
-      totalJobs,
-      activeJobs,
-      completedToday,
-      failedToday,
-      totalScraped
-    ] = await Promise.all([
-      this.prisma.scrapeJob.count(),
-      this.prisma.scrapeJob.count({
-        where: { status: 'running' }
-      }),
-      this.prisma.scrapeJobHistory.count({
-        where: {
-          status: 'completed',
-          startTime: { gte: startOfDay }
-        }
-      }),
-      this.prisma.scrapeJobHistory.count({
-        where: {
-          status: 'failed',
-          startTime: { gte: startOfDay }
-        }
-      }),
-      this.prisma.scrapeJobHistory.aggregate({
-        _sum: {
-          itemsScraped: true
-        }
-      })
-    ]);
+      // Requêtes pour obtenir les statistiques
+      const [
+        totalJobs,
+        completedJobs,
+        failedJobs,
+        pendingJobs,
+        activeScrapers,
+        totalDataPoints,
+        jobExecutions,
+        lastJob
+      ] = await Promise.all([
+        // Total des jobs
+        this.prisma.scrapeJob.count(),
+        
+        // Jobs complétés dans la période
+        this.prisma.scrapeJob.count({
+          where: { 
+            status: 'completed',
+            updatedAt: { gte: startDate }
+          }
+        }),
+        
+        // Jobs échoués dans la période
+        this.prisma.scrapeJob.count({
+          where: { 
+            status: 'failed',
+            updatedAt: { gte: startDate }
+          }
+        }),
+        
+        // Jobs en attente
+        this.prisma.scrapeJob.count({
+          where: { 
+            status: { in: ['pending', 'queued', 'idle'] }
+          }
+        }),
+        
+        // Scrapers actifs (jobs en cours d'exécution)
+        this.prisma.scrapeJob.count({
+          where: { status: 'running' }
+        }),
+        
+        // Nombre total de données récupérées
+        this.prisma.scrapeJobHistory.aggregate({
+          where: { startTime: { gte: startDate } },
+          _sum: { itemsScraped: true }
+        }),
+        
+        // Exécutions pour calculer le temps moyen
+        this.prisma.scrapeJobHistory.findMany({
+          where: {
+            status: 'completed',
+            startTime: { gte: startDate },
+            endTime: { not: null }
+          },
+          select: {
+            startTime: true,
+            endTime: true
+          }
+        }),
+        
+        // Dernier job exécuté
+        this.prisma.scrapeJob.findFirst({
+          where: {
+            status: { in: ['completed', 'failed'] }
+          },
+          orderBy: { updatedAt: 'desc' },
+          select: { updatedAt: true }
+        })
+      ]);
 
-    return {
-      totalJobs,
-      activeJobs,
-      completedToday,
-      failedToday,
-      totalItemsScraped: totalScraped._sum.itemsScraped || 0
-    };
+      // Calculer le taux de réussite
+      const totalExecuted = completedJobs + failedJobs;
+      const successRate = totalExecuted > 0 
+        ? (completedJobs / totalExecuted) * 100 
+        : 0;
+
+      // Calculer le temps moyen par job
+      let avgTimePerJob = 0;
+      if (jobExecutions.length > 0) {
+        const totalDuration = jobExecutions.reduce((acc, job) => {
+          if (job.endTime && job.startTime) {
+            return acc + (job.endTime.getTime() - job.startTime.getTime());
+          }
+          return acc;
+        }, 0);
+        avgTimePerJob = totalDuration / jobExecutions.length / 1000; // en secondes
+      }
+
+      return {
+        totalJobs,
+        completedJobs,
+        failedJobs,
+        pendingJobs,
+        successRate,
+        totalDataPoints: totalDataPoints._sum.itemsScraped || 0,
+        activeScrapers,
+        avgTimePerJob,
+        lastJobTime: lastJob?.updatedAt?.toISOString() || null
+      };
+    } catch (error) {
+      logger.error('Error fetching stats:', error);
+      // Retourner des valeurs par défaut en cas d'erreur
+      return {
+        totalJobs: 0,
+        completedJobs: 0,
+        failedJobs: 0,
+        pendingJobs: 0,
+        successRate: 0,
+        totalDataPoints: 0,
+        activeScrapers: 0,
+        avgTimePerJob: 0,
+        lastJobTime: null
+      };
+    }
   }
 
   async saveResults(jobId: number, results: any[]) {
@@ -262,6 +359,39 @@ export class ScrapeJobService {
     } catch (error) {
       logger.error('Error saving results:', error);
       throw error;
+    }
+  }
+
+  public async getAllJobsHistory(): Promise<any[]> {
+    try {
+      // Récupérer tous les jobs de la base de données sans pagination
+      const jobs = await this.prisma.scrapeJob.findMany({
+        orderBy: {
+          id: 'desc'
+        },
+        include: {
+          history: {
+            orderBy: {
+              startTime: 'desc'
+            }
+          }
+        }
+      });
+
+      return jobs.map(job => ({
+        id: job.id,
+        source: job.source,
+        query: job.query,
+        pageCount: job.pageCount,
+        status: job.status,
+        lastRun: job.history[0]?.startTime || null,
+        createdAt: job.createdAt,
+        updatedAt: job.updatedAt,
+        history: job.history
+      }));
+    } catch (error) {
+      logger.error('Error fetching all jobs history:', error);
+      throw new Error('Failed to fetch jobs history');
     }
   }
 } 

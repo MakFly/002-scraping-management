@@ -5,7 +5,7 @@ import { HonoAdapter } from "@bull-board/hono";
 import { Queue, Worker } from "bullmq";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { config } from "../config/config";
-import scrapeRoutes from "../routes/scrape.routes";
+import scrapeRoutes from "../routes/scrape.route";
 import { createSwaggerRoute } from "../routes/swagger.route";
 import { cors } from 'hono/cors';
 import { prettyJSON } from 'hono/pretty-json';

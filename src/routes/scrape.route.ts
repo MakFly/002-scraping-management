@@ -6,7 +6,7 @@ import { ScrapeController } from '../controllers/scrape.controller';
 // Validation schemas
 const paginationSchema = z.object({
   cursor: z.string().optional(),
-  limit: z.number().int().min(1).max(100).default(10),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
 });
 
 const createJobSchema = z.discriminatedUnion('source', [
@@ -54,14 +54,17 @@ const controller = new ScrapeController();
 // SSE endpoint for real-time updates
 router.get('/api/v1/scraping/events', (c) => controller.subscribeToEvents(c));
 
-// List jobs with pagination
+// List jobs with pagination (for dashboard)
 router.get('/api/v1/scraping/jobs', zValidator('query', paginationSchema), (c) => controller.getAllScrapeJobs(c));
 
-// Create new job
-router.post('/api/v1/scraping/jobs', zValidator('json', createJobSchema), (c) => controller.createScrapeJob(c));
+// Get all jobs for history (no pagination)
+router.get('/api/v1/scraping/jobs/history', (c) => controller.getAllJobsHistory(c));
 
 // Get job details
 router.get('/api/v1/scraping/jobs/:id', (c) => controller.getScrapeJob(c));
+
+// Create new job
+router.post('/api/v1/scraping/jobs', zValidator('json', createJobSchema), (c) => controller.createScrapeJob(c));
 
 // Run job manually
 router.post('/api/v1/scraping/jobs/:id/run', (c) => controller.runScrapeJob(c));

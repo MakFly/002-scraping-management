@@ -69,15 +69,46 @@ export class ScraperService {
     }
     
     logger.info(`Stratégie initiale pour ${domain}: ${strategyType}`);
-    this.reportProgress(job.jobId, 20, job.source);
+    
+    // Progression plus graduelle pour AutoScout24
+    if (job.source === 'autoscout24') {
+      this.reportProgress(job.jobId, 5, job.source);
+      
+      // Si la stratégie est Puppeteer, on prépare un listener pour reporter la progression par page
+      if (strategyType === ScraperType.PUPPETEER) {
+        const totalPages = job.pageCount || 1;
+        const progressPerPage = Math.floor(80 / totalPages); // 80% répartis sur toutes les pages
+        
+        // Ajouter un événement pour suivre la progression page par page
+        const puppeteerStrategy = this.getStrategy(ScraperType.PUPPETEER) as any;
+        if (puppeteerStrategy.onPageScraped) {
+          puppeteerStrategy.onPageScraped = (pageNum: number, totalPages: number) => {
+            const progressValue = 10 + (pageNum * progressPerPage);
+            this.reportProgress(job.jobId, Math.min(90, progressValue), job.source);
+          };
+        }
+      }
+    } else {
+      this.reportProgress(job.jobId, 20, job.source);
+    }
     
     // Tentative avec la première stratégie
     try {
       const strategy = this.getStrategy(strategyType);
-      this.reportProgress(job.jobId, 40, job.source);
+      
+      if (job.source === 'autoscout24') {
+        this.reportProgress(job.jobId, 10, job.source);
+      } else {
+        this.reportProgress(job.jobId, 40, job.source);
+      }
       
       const result = await strategy.scrape(job);
-      this.reportProgress(job.jobId, 80, job.source, result.items.length);
+      
+      if (job.source === 'autoscout24') {
+        this.reportProgress(job.jobId, 95, job.source, result.items.length);
+      } else {
+        this.reportProgress(job.jobId, 80, job.source, result.items.length);
+      }
       
       // Si la stratégie initiale est Cheerio et n'a pas donné de résultats satisfaisants,
       // basculer vers Puppeteer
