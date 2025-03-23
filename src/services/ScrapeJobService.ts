@@ -141,6 +141,7 @@ export class ScrapeJobService {
     return {
       success: true,
       jobId: job.id,
+      source: job.source,
       startTime: new Date().toISOString(),
       status: 'running' as const
     };

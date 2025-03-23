@@ -44,7 +44,8 @@ export class ScrapeController {
             data: {
               source: 'leboncoin',
               status: 'pending',
-              ...job
+              progress: 0,
+              itemsScraped: 0
             }
           };
           
@@ -71,7 +72,8 @@ export class ScrapeController {
           data: {
             source: body.source,
             status: 'pending',
-            ...result
+            progress: 0,
+            itemsScraped: 0
           }
         };
         
@@ -133,6 +135,9 @@ export class ScrapeController {
         timestamp: new Date().toISOString(),
         data: {
           status: 'running',
+          source: result.source,
+          progress: 0,
+          itemsScraped: 0,
           message: 'Job démarré manuellement'
         }
       });

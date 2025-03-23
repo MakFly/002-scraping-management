@@ -5,6 +5,7 @@ import { domainRegistry } from './scrapers/DomainRegistry';
 import { cheerioStrategy } from './scrapers/CheerioStrategy';
 import { puppeteerStrategy } from './scrapers/PuppeteerStrategy';
 import { leboncoinStrategy } from './scrapers/LeboncoinStrategy';
+import { WebSocketService } from './WebSocketService';
 
 /**
  * Service principal de scraping qui orchestre les différentes stratégies
@@ -12,6 +13,7 @@ import { leboncoinStrategy } from './scrapers/LeboncoinStrategy';
  */
 export class ScraperService {
   private strategies: Map<ScraperType | string, ScrapeStrategy> = new Map();
+  private wsService: WebSocketService;
   
   // Cache des stratégies optimales par domaine pour les prochaines requêtes
   private domainStrategyCache: Map<string, ScraperType | string> = new Map();
@@ -21,6 +23,7 @@ export class ScraperService {
     this.strategies.set(ScraperType.CHEERIO, cheerioStrategy);
     this.strategies.set(ScraperType.PUPPETEER, puppeteerStrategy);
     this.strategies.set('leboncoin', leboncoinStrategy);
+    this.wsService = WebSocketService.getInstance();
   }
 
   /**
@@ -28,11 +31,23 @@ export class ScraperService {
    * Choisit automatiquement la meilleure stratégie
    */
   public async scrape(job: ScrapeJob): Promise<ScrapedData> {
+    // Envoyer l'événement de début avec 0% de progression
+    this.reportProgress(job.jobId, 0, job.source);
+
     // Si c'est une source Leboncoin, utiliser directement la stratégie Leboncoin
     if (job.source === 'leboncoin') {
       logger.info('Utilisation de la stratégie API Leboncoin');
       const strategy = this.getStrategy('leboncoin');
-      return await strategy.scrape(job);
+      
+      // Mettre à jour le progrès à 10% pour indiquer que le job a commencé
+      this.reportProgress(job.jobId, 10, job.source);
+      
+      const result = await strategy.scrape(job);
+      
+      // Mettre à jour le progrès à 100%
+      this.reportProgress(job.jobId, 100, job.source, result.items.length);
+      
+      return result;
     }
 
     // Pour les autres sources, utiliser la logique existante
@@ -54,11 +69,15 @@ export class ScraperService {
     }
     
     logger.info(`Stratégie initiale pour ${domain}: ${strategyType}`);
+    this.reportProgress(job.jobId, 20, job.source);
     
     // Tentative avec la première stratégie
     try {
       const strategy = this.getStrategy(strategyType);
+      this.reportProgress(job.jobId, 40, job.source);
+      
       const result = await strategy.scrape(job);
+      this.reportProgress(job.jobId, 80, job.source, result.items.length);
       
       // Si la stratégie initiale est Cheerio et n'a pas donné de résultats satisfaisants,
       // basculer vers Puppeteer
@@ -72,12 +91,17 @@ export class ScraperService {
         this.domainStrategyCache.set(domain, ScraperType.PUPPETEER);
         
         // Réessayer avec Puppeteer
+        this.reportProgress(job.jobId, 60, job.source);
         const puppeteerStrategy = this.getStrategy(ScraperType.PUPPETEER);
-        return await puppeteerStrategy.scrape(job);
+        const puppeteerResult = await puppeteerStrategy.scrape(job);
+        this.reportProgress(job.jobId, 100, job.source, puppeteerResult.items.length);
+        
+        return puppeteerResult;
       }
       
       // La stratégie a fonctionné, la mettre en cache
       this.domainStrategyCache.set(domain, strategyType);
+      this.reportProgress(job.jobId, 100, job.source, result.items.length);
       
       return result;
     } catch (error) {
@@ -91,8 +115,12 @@ export class ScraperService {
         this.domainStrategyCache.set(domain, ScraperType.PUPPETEER);
         
         // Réessayer avec Puppeteer
+        this.reportProgress(job.jobId, 60, job.source);
         const puppeteerStrategy = this.getStrategy(ScraperType.PUPPETEER);
-        return await puppeteerStrategy.scrape(job);
+        const result = await puppeteerStrategy.scrape(job);
+        this.reportProgress(job.jobId, 100, job.source, result.items.length);
+        
+        return result;
       }
       
       // Si l'échec est déjà avec Puppeteer ou une autre stratégie, relancer l'erreur
@@ -173,6 +201,36 @@ export class ScraperService {
     
     // Vider le cache
     this.domainStrategyCache.clear();
+  }
+
+  /**
+   * Rapporte la progression du scraping
+   */
+  private reportProgress(jobId: number, progress: number, source: string, itemsScraped: number = 0) {
+    const data = {
+      jobId: jobId.toString(),
+      progress,
+      status: progress === 100 ? 'completed' : 'running',
+      timestamp: new Date().toISOString(),
+      data: {
+        source,
+        progress,
+        itemsScraped
+      }
+    };
+    
+    logger.info(`Sending progress update: ${JSON.stringify(data)}`);
+    
+    // Émettre via WebSocket
+    this.wsService.emitToAll('scraping:update', data);
+    
+    // Émettre aussi à la room spécifique du job
+    this.wsService.emitToJob(jobId, {
+      type: 'job_update',
+      ...data
+    });
+    
+    logger.info(`Progress update for job ${jobId}: ${progress}%, items: ${itemsScraped}`);
   }
 }
 
