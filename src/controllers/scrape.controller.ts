@@ -264,19 +264,23 @@ export class ScrapeController {
 
   public async getAllJobsHistory(c: Context): Promise<Response> {
     try {
-      // Utiliser une méthode spécifique pour récupérer tous les jobs
-      const result = await this.jobService.getAllJobsHistory();
-      return c.json({
-        items: result,
-        success: true
-      });
+      const { cursor, limit, includeResults } = c.req.valid('query');
+      const result = await this.jobService.getAllJobsHistory(cursor, limit, includeResults);
+      return c.json(result);
     } catch (error) {
-      logger.error('Error retrieving jobs history:', error);
-      return c.json({
-        success: false,
-        message: 'Error retrieving jobs history',
-        timestamp: new Date().toISOString()
-      }, 500);
+      logger.error('Error in getAllJobsHistory:', error);
+      return c.json({ error: 'Failed to fetch jobs history' }, 500);
+    }
+  }
+
+  public async getJobHistoryResults(c: Context): Promise<Response> {
+    try {
+      const historyId = parseInt(c.req.param('historyId'));
+      const result = await this.jobService.getJobHistoryResults(historyId);
+      return c.json(result);
+    } catch (error) {
+      logger.error('Error in getJobHistoryResults:', error);
+      return c.json({ error: 'Failed to fetch job history results' }, 500);
     }
   }
 } 

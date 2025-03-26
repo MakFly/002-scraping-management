@@ -6,6 +6,8 @@ import { cheerioStrategy } from './scrapers/CheerioStrategy';
 import { puppeteerStrategy } from './scrapers/PuppeteerStrategy';
 import { leboncoinStrategy } from './scrapers/LeboncoinStrategy';
 import { WebSocketService } from './WebSocketService';
+import { PrismaClient, ScrapeJobHistory, Prisma } from '@prisma/client';
+import { ScrapeJobService } from './ScrapeJobService';
 
 /**
  * Service principal de scraping qui orchestre les différentes stratégies
@@ -14,6 +16,8 @@ import { WebSocketService } from './WebSocketService';
 export class ScraperService {
   private strategies: Map<ScraperType | string, ScrapeStrategy> = new Map();
   private wsService: WebSocketService;
+  private prisma: PrismaClient;
+  private jobService: ScrapeJobService;
   
   // Cache des stratégies optimales par domaine pour les prochaines requêtes
   private domainStrategyCache: Map<string, ScraperType | string> = new Map();
@@ -24,6 +28,8 @@ export class ScraperService {
     this.strategies.set(ScraperType.PUPPETEER, puppeteerStrategy);
     this.strategies.set('leboncoin', leboncoinStrategy);
     this.wsService = WebSocketService.getInstance();
+    this.prisma = new PrismaClient();
+    this.jobService = new ScrapeJobService();
   }
 
   /**
@@ -43,6 +49,8 @@ export class ScraperService {
       this.reportProgress(job.jobId, 10, job.source);
       
       const result = await strategy.scrape(job);
+      
+      // Le traitement des résultats est maintenant fait dans le worker lorsque le job est complété
       
       // Mettre à jour le progrès à 100%
       this.reportProgress(job.jobId, 100, job.source, result.items.length);
@@ -104,6 +112,8 @@ export class ScraperService {
       
       const result = await strategy.scrape(job);
       
+      // Le traitement des résultats est maintenant fait dans le worker lorsque le job est complété
+      
       if (job.source === 'autoscout24') {
         this.reportProgress(job.jobId, 95, job.source, result.items.length);
       } else {
@@ -125,6 +135,9 @@ export class ScraperService {
         this.reportProgress(job.jobId, 60, job.source);
         const puppeteerStrategy = this.getStrategy(ScraperType.PUPPETEER);
         const puppeteerResult = await puppeteerStrategy.scrape(job);
+        
+        // Le traitement des résultats est maintenant fait dans le worker lorsque le job est complété
+        
         this.reportProgress(job.jobId, 100, job.source, puppeteerResult.items.length);
         
         return puppeteerResult;
@@ -149,6 +162,9 @@ export class ScraperService {
         this.reportProgress(job.jobId, 60, job.source);
         const puppeteerStrategy = this.getStrategy(ScraperType.PUPPETEER);
         const result = await puppeteerStrategy.scrape(job);
+        
+        // Le traitement des résultats est maintenant fait dans le worker lorsque le job est complété
+        
         this.reportProgress(job.jobId, 100, job.source, result.items.length);
         
         return result;

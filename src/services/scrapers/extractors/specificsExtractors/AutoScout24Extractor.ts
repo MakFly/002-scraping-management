@@ -3,6 +3,7 @@ import { BaseExtractor } from '../BaseExtractor';
 import { ScrapedItem, ExtendedScrapeJob } from '../../../../types/scraper.types';
 import { logger } from '../../../../config/logger';
 import { domainRegistry } from '../../DomainRegistry';
+import { UnifiedVehicleAd } from '../../../../types/unified.types';
 
 /**
  * Extracteur spécifique pour AutoScout24
@@ -109,10 +110,75 @@ export class AutoScout24Extractor extends BaseExtractor {
   }
 
   /**
+   * Normalise les données extraites en format unifié
+   */
+  private normalizeData(item: any): UnifiedVehicleAd {
+    return {
+      id: `autoscout24_${item.id || Date.now()}`,
+      platform: 'autoscout24',
+      url: item.url || '',
+      externalId: item.id || '',
+
+      title: item.title || '',
+      description: item.description || '',
+      price: item.price || 0,
+
+      location: {
+        city: item.city || '',
+        postalCode: item.postalCode || '',
+        region: '', // À compléter si disponible dans l'API
+        department: '', // À compléter si disponible dans l'API
+        coordinates: undefined // À compléter si disponible dans l'API
+      },
+
+      vehicle: {
+        brand: item.brand || '',
+        model: item.model || '',
+        version: item.version || '',
+        year: item.year || 0,
+        mileage: item.mileage || 0,
+        fuel: item.fuel || '',
+        transmission: item.transmission || '',
+        power: {
+          fiscal: item.fiscalPower || 0,
+          din: item.dinPower || 0
+        },
+        color: item.color || '',
+        doors: item.doors || 0,
+        seats: item.seats || 0,
+        technicalInspection: {
+          validUntil: item.technicalInspectionDate || ''
+        },
+        features: item.features || [],
+        condition: item.condition || 'unknown'
+      },
+
+      images: {
+        urls: item.images || [],
+        thumbnail: item.thumbnail
+      },
+
+      seller: {
+        name: item.fullname || '',
+        type: item.dealerType || 'private',
+        phone: item.hasPhone || false
+      },
+
+      metadata: {
+        publishedAt: item.publishedAt || '',
+        expiresAt: item.expiresAt || '',
+        status: item.status || 'active',
+        category: item.category || 'car',
+        lastUpdated: item.lastUpdated || new Date().toISOString()
+      }
+    };
+  }
+
+  /**
    * Extrait les éléments spécifiques à AutoScout24
    */
   async extractItems(page: Page, selectors: any): Promise<ScrapedItem[]> {
-    return page.evaluate((selectors) => {
+    const rawItems = await page.evaluate((selectors) => {
       const items: any[] = [];
       
       // Trouver tous les conteneurs d'articles
@@ -262,5 +328,8 @@ export class AutoScout24Extractor extends BaseExtractor {
       
       return items;
     }, selectors);
+
+    // Normaliser les données extraites
+    return rawItems.map(item => this.normalizeData(item));
   }
 } 

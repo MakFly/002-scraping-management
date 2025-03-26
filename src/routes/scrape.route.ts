@@ -7,6 +7,7 @@ import { ScrapeController } from '../controllers/scrape.controller';
 const paginationSchema = z.object({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(10),
+  includeResults: z.coerce.boolean().default(false),
 });
 
 const createJobSchema = z.discriminatedUnion('source', [
@@ -57,8 +58,11 @@ router.get('/api/v1/scraping/events', (c) => controller.subscribeToEvents(c));
 // List jobs with pagination (for dashboard)
 router.get('/api/v1/scraping/jobs', zValidator('query', paginationSchema), (c) => controller.getAllScrapeJobs(c));
 
-// Get all jobs for history (no pagination)
-router.get('/api/v1/scraping/jobs/history', (c) => controller.getAllJobsHistory(c));
+// Get all jobs for history (with pagination and optional results)
+router.get('/api/v1/scraping/jobs/history', zValidator('query', paginationSchema), (c) => controller.getAllJobsHistory(c));
+
+// Get detailed results for a specific history entry
+router.get('/api/v1/scraping/jobs/history/:historyId/results', (c) => controller.getJobHistoryResults(c));
 
 // Get job details
 router.get('/api/v1/scraping/jobs/:id', (c) => controller.getScrapeJob(c));

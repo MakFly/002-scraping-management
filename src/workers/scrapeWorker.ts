@@ -7,6 +7,7 @@ import { Server } from 'socket.io';
 import { ServerToClientEvents, ClientToServerEvents } from '../types/socketio.types';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { WebSocketService } from '../services/WebSocketService';
+import { exec } from 'child_process';
 
 /**
  * Worker pour exécuter les tâches de scraping avec BullMQ
@@ -79,8 +80,8 @@ export const createScrapeWorker = () => {
             endTime: new Date(),
             itemsScraped: result.items.length,
             logs: [],
-            results: result
-          } as Prisma.ScrapeJobHistoryUpdateInput
+            results: result as any // Prisma acceptera l'objet car il sera converti en JSON
+          }
         });
 
         await prisma.scrapeJob.update({
@@ -104,6 +105,21 @@ export const createScrapeWorker = () => {
         
         // Envoyer le log final en temps réel
         wsService.addJobLog(job.data.jobId, logEnd);
+        
+        // Quand le job est terminé avec succès, lancer le retraitement
+        logger.info(`📊 Job ${job.data.jobId} terminé avec succès, lancement du retraitement...`);
+        
+        // Lancer le script de retraitement
+        exec('npx ts-node scripts/simple-reprocess.ts', (error, stdout, stderr) => {
+          if (error) {
+            logger.error(`Erreur lors du retraitement: ${error}`);
+            return;
+          }
+          if (stderr) {
+            logger.warn(`Avertissements lors du retraitement: ${stderr}`);
+          }
+          logger.info(`Résultat du retraitement: ${stdout}`);
+        });
         
         return {
           success: true,

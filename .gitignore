@@ -16,5 +16,4 @@ data
 # Temporary files
 tmp/
 
-
-
+dist/

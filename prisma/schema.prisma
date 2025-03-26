@@ -35,8 +35,71 @@ model ScrapeJobHistory {
   logs         String[]   // Store log entries for real-time monitoring
   results      Json?      // Store scraping results as JSON
   job          ScrapeJob  @relation(fields: [jobId], references: [id])
+  vehicleAds   VehicleAd[] // Relation avec les annonces de véhicules normalisées
 
   @@index([jobId])
   @@index([startTime])
   @@index([status])
+}
+
+model VehicleAd {
+  id          String   @id
+  scrapeJobHistoryId Int
+  platform    String
+  url         String
+  externalId  String
+  title       String
+  description String
+  price       Float
+
+  // Location
+  city        String
+  postalCode  String
+  region      String
+  department  String
+  latitude    Float?
+  longitude   Float?
+
+  // Vehicle
+  brand       String
+  model       String
+  version     String
+  year        Int
+  mileage     Int
+  fuel        String
+  transmission String
+  fiscalPower Int
+  dinPower    Int
+  color       String
+  doors       Int
+  seats       Int
+  inspectionValidUntil String
+  features    String[]
+  condition   String
+
+  // Images
+  imageUrls   String[]
+  thumbnail   String?
+
+  // Seller
+  sellerName  String
+  sellerType  String
+  hasPhone    Boolean
+
+  // Metadata
+  publishedAt DateTime
+  expiresAt   DateTime
+  status      String
+  category    String
+  lastUpdated DateTime
+
+  // Relations
+  scrapeJobHistory ScrapeJobHistory @relation(fields: [scrapeJobHistoryId], references: [id])
+
+  @@index([platform, externalId])
+  @@index([brand, model])
+  @@index([price])
+  @@index([year])
+  @@index([mileage])
+  @@index([scrapeJobHistoryId])
 }
