@@ -7,6 +7,19 @@ export interface LeboncoinSearchParams {
       ad_type: string[];
       u_car_brand?: string[];
     };
+    ranges?: {
+      mileage?: {
+        max?: number;
+        min?: number;
+      };
+      price?: {
+        max?: number;
+        min?: number;
+      };
+    };
+    keywords?: {
+      text: string;
+    };
     location: Record<string, any>;
   };
   limit: number;

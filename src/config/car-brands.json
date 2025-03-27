@@ -1,0 +1,113 @@
+{
+  "VOLKSWAGEN": {
+    "premium_models": []
+  },
+  "AUDI": {
+    "premium_models": [
+      "AUDI_TT",
+      "AUDI_A1",
+      "AUDI_A2",
+      "AUDI_A3",
+      "AUDI_A4",
+      "AUDI_A5",
+      "AUDI_A6",
+      "AUDI_A7",
+      "AUDI_A8",
+      "AUDI_S1",
+      "AUDI_S2",
+      "AUDI_S3",
+      "AUDI_S4",
+      "AUDI_S5",
+      "AUDI_S6",
+      "AUDI_S7",
+      "AUDI_S8",
+      "AUDI_RS2",
+      "AUDI_RS3",
+      "AUDI_RS4",
+      "AUDI_RS5",
+      "AUDI_RS6",
+      "AUDI_RS7",
+      "AUDI_TT RS",
+      "AUDI_TTS"
+    ]
+  },
+  "BMW": {
+    "premium_models": [
+      "BMW_M2",
+      "BMW_M3",
+      "BMW_M4",
+      "BMW_M5",
+      "BMW_M6",
+      "BMW_M8",
+      "BMW_Série+1",
+      "BMW_Série+2",
+      "BMW_Série+3",
+      "BMW_Série+4",
+      "BMW_Z1",
+      "BMW_Z2",
+      "BMW_Z3"
+    ]
+  },
+  "MERCEDES-BENZ": {
+    "premium_models": [
+      "MERCEDES-BENZ_190",
+      "MERCEDES-BENZ_200",
+      "MERCEDES-BENZ_220",
+      "MERCEDES-BENZ_230",
+      "MERCEDES-BENZ_280",
+      "MERCEDES-BENZ_300",
+      "MERCEDES-BENZ_320",
+      "MERCEDES-BENZ_350",
+      "MERCEDES-BENZ_AMG+GT",
+      "MERCEDES-BENZ_Classe+A",
+      "MERCEDES-BENZ_Classe+B",
+      "MERCEDES-BENZ_Classe+C",
+      "MERCEDES-BENZ_Classe+CLA",
+      "MERCEDES-BENZ_Classe+CLC",
+      "MERCEDES-BENZ_Classe+CLK",
+      "MERCEDES-BENZ_Classe+CLS",
+      "MERCEDES-BENZ_Classe+E",
+      "MERCEDES-BENZ_Classe+G",
+      "MERCEDES-BENZ_Classe+GL",
+      "MERCEDES-BENZ_Classe+GLA",
+      "MERCEDES-BENZ_Classe+GLB",
+      "MERCEDES-BENZ_Classe+GLC",
+      "MERCEDES-BENZ_Classe+GLE",
+      "MERCEDES-BENZ_Classe+GLK",
+      "MERCEDES-BENZ_Classe+GLS",
+      "MERCEDES-BENZ_Classe+M/ML",
+      "MERCEDES-BENZ_Classe+R",
+      "MERCEDES-BENZ_Classe+S",
+      "MERCEDES-BENZ_Classe+SL",
+      "MERCEDES-BENZ_Classe+SLC",
+      "MERCEDES-BENZ_Classe+SLK"
+    ]
+  },
+  "FIAT": {
+    "premium_models": [
+      "ABARTH_124",
+      "ABARTH_500"
+    ]
+  },
+  "SEAT": {
+    "premium_models": []
+  },
+  "PORSCHE": {
+    "premium_models": []
+  },
+  "FERRARI": {
+    "premium_models": []
+  },
+  "MAZDA": {
+    "premium_models": []
+  },
+  "MASERATI": {
+    "premium_models": []
+  },
+  "MCLAREN": {
+    "premium_models": []
+  },
+  "SUZUKI": {
+    "premium_models": []
+  }
+} 
